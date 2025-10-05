@@ -1,0 +1,42 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+**/.env
+**/.env.local
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+**/*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build output
+dist/
+build/
+*.tgz
+
+# PM2
+.pm2/
+*.pid
+
+# Temporary files
+tmp/
+temp/
+*.tmp

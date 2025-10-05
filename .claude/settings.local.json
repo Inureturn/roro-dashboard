@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(copy .env ingestor.env)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

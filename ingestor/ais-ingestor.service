@@ -1,0 +1,25 @@
+[Unit]
+Description=AIS Ingestor - Real-time vessel position tracking
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/ais-ingestor
+EnvironmentFile=/home/deploy/ais-ingestor/.env
+ExecStart=/usr/bin/node ingest.mjs
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ais-ingestor
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/deploy/ais-ingestor
+
+[Install]
+WantedBy=multi-user.target
