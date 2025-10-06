@@ -36,8 +36,8 @@ export const translations = {
     na: 'N/A',
     never: 'Never',
     noData: 'No Data',
-    activeStatus: 'Active',
-    lastSeen: 'Last seen > 1h',
+    activeStatus: 'Active now',
+    lastSeen: 'Last seen',
 
     // Units
     knotsAbbr: 'kn',
@@ -133,8 +133,8 @@ export const translations = {
     na: '해당 없음',
     never: '없음',
     noData: '데이터 없음',
-    activeStatus: '활성',
-    lastSeen: '1시간 이상 전',
+    activeStatus: '활성 중',
+    lastSeen: '마지막 확인',
 
     // Units
     knotsAbbr: '노트',

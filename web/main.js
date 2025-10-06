@@ -162,6 +162,75 @@ function formatRelativeTime(timestamp) {
   }
 }
 
+// Get country flag emoji from country name or code
+function getCountryFlag(countryName) {
+  if (!countryName) return '';
+
+  const flagMap = {
+    // Common maritime flags
+    'panama': '🇵🇦',
+    'liberia': '🇱🇷',
+    'marshall islands': '🇲🇭',
+    'malta': '🇲🇹',
+    'bahamas': '🇧🇸',
+    'singapore': '🇸🇬',
+    'hong kong': '🇭🇰',
+    'cyprus': '🇨🇾',
+    'china': '🇨🇳',
+    'japan': '🇯🇵',
+    'south korea': '🇰🇷',
+    'korea': '🇰🇷',
+    'republic of korea': '🇰🇷',
+    'turkey': '🇹🇷',
+    'greece': '🇬🇷',
+    'italy': '🇮🇹',
+    'norway': '🇳🇴',
+    'denmark': '🇩🇰',
+    'sweden': '🇸🇪',
+    'finland': '🇫🇮',
+    'netherlands': '🇳🇱',
+    'germany': '🇩🇪',
+    'france': '🇫🇷',
+    'spain': '🇪🇸',
+    'uk': '🇬🇧',
+    'united kingdom': '🇬🇧',
+    'great britain': '🇬🇧',
+    'usa': '🇺🇸',
+    'united states': '🇺🇸',
+    'canada': '🇨🇦',
+    'australia': '🇦🇺',
+    'new zealand': '🇳🇿',
+    'india': '🇮🇳',
+    'uae': '🇦🇪',
+    'saudi arabia': '🇸🇦',
+    'egypt': '🇪🇬',
+    'south africa': '🇿🇦',
+    'brazil': '🇧🇷',
+    'argentina': '🇦🇷',
+    'mexico': '🇲🇽',
+    'chile': '🇨🇱',
+    'portugal': '🇵🇹',
+    'belgium': '🇧🇪',
+    'poland': '🇵🇱',
+    'russia': '🇷🇺',
+    'ukraine': '🇺🇦'
+  };
+
+  const normalized = countryName.toLowerCase().trim();
+
+  // Try exact match first
+  if (flagMap[normalized]) return flagMap[normalized];
+
+  // Try partial match (e.g., "Korea" in "Republic of Korea")
+  for (const [key, flag] of Object.entries(flagMap)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return flag;
+    }
+  }
+
+  return '';
+}
+
 function applyStaticTranslations() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
@@ -466,8 +535,9 @@ function updateVesselMarker(mmsi, position, trail = []) {
       <div><strong>${t('status', currentLanguage)}:</strong> ${navStatus}</div>
       <div><strong>${t('destination', currentLanguage)}:</strong> ${destination}</div>
       ${vessel.eta_utc ? `<div><strong>${t('eta', currentLanguage)}:</strong> ${eta}</div>` : ''}
-      <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #8090b0;">
-        ${formatDateTime(position.ts)}
+      <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div style="font-size: 0.8rem; font-weight: 500; color: #4fc3f7;">${t('lastSeen', currentLanguage)} ${formatRelativeTime(position.ts)}</div>
+        <div style="font-size: 0.7rem; color: #8090b0; margin-top: 0.15rem;">${formatDateTime(position.ts)}</div>
       </div>
     </div>
   `);
@@ -611,15 +681,22 @@ function showVesselDetails(mmsi) {
   const lengthText = vessel.length_m ? `${vessel.length_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
   const beamText = vessel.beam_m ? `${vessel.beam_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
   const draughtText = vessel.max_draught_m ? `${vessel.max_draught_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
-  const destinationText = vessel.destination || pos?.destination || t('na', currentLanguage);
+  const rawDestination = vessel.destination || pos?.destination || '';
+  const destinationText = (() => {
+    if (!rawDestination) return t('na', currentLanguage);
+    const destParts = rawDestination.split(',').map(p => p.trim());
+    const country = destParts[destParts.length - 1];
+    const flag = getCountryFlag(country);
+    return flag ? `${flag} ${rawDestination}` : rawDestination;
+  })();
   const etaText = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
 
   const speedText = pos ? formatSpeed(pos.sog_knots ?? 0) : t('na', currentLanguage);
   const courseText = pos?.cog_deg !== undefined && pos?.cog_deg !== null
-    ? `${Math.round(pos.cog_deg)}Â°`
+    ? `${Math.round(pos.cog_deg)}°`
     : t('na', currentLanguage);
   const headingText = pos?.heading_deg !== undefined && pos?.heading_deg !== null
-    ? `${pos.heading_deg}Â°`
+    ? `${pos.heading_deg}°`
     : t('na', currentLanguage);
   const statusText = pos?.nav_status || t('na', currentLanguage);
 
@@ -649,7 +726,7 @@ function showVesselDetails(mmsi) {
       ${vessel.flag ? `
       <div class="detail-row">
         <span class="detail-label">${t('flag', currentLanguage)}</span>
-        <span class="detail-value">${vessel.flag}</span>
+        <span class="detail-value">${getCountryFlag(vessel.flag)} ${vessel.flag}</span>
       </div>
       ` : ''}
       ${vessel.operator ? `
@@ -736,7 +813,12 @@ function showVesselDetails(mmsi) {
       <div class="detail-row">
         <span class="detail-label">${t('lastPort', currentLanguage) || 'Last Port'}</span>
         <span class="detail-value">
-          ${vessel.last_port}
+          ${(() => {
+            const portParts = vessel.last_port.split(',').map(p => p.trim());
+            const country = portParts[portParts.length - 1];
+            const flag = getCountryFlag(country);
+            return flag ? `${flag} ${vessel.last_port}` : vessel.last_port;
+          })()}
           ${vessel.last_port_arrival_utc ? `<br><small style="color: var(--text-muted); font-size: 0.85em;">${formatRelativeTime(vessel.last_port_arrival_utc)}</small>` : ''}
         </span>
       </div>
