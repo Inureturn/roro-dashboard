@@ -61,6 +61,10 @@ select distinct on (vp.mmsi)
 from public.vessel_positions vp
 order by vp.mmsi, vp.ts desc;
 
+-- Unique index required for CONCURRENTLY refresh
+create unique index if not exists idx_vessel_latest_mmsi
+  on public.vessel_latest (mmsi);
+
 -- 3) Indexes
 -- ---------------------------------------------------------
 create index if not exists idx_vessel_positions_ts

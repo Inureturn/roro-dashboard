@@ -14,7 +14,11 @@
 Open `supabase/migration-add-refresh-function.sql` and copy this:
 
 ```sql
--- Migration: Add refresh_vessel_latest() function
+-- Step 1: Add unique index (required for CONCURRENTLY refresh)
+create unique index if not exists idx_vessel_latest_mmsi
+  on public.vessel_latest (mmsi);
+
+-- Step 2: Create refresh function
 create or replace function public.refresh_vessel_latest()
 returns void
 language plpgsql
@@ -60,6 +64,12 @@ This migration adds a function that allows the `refresh-view.mjs` cron script to
 **With this function:** Cron job can refresh the view every 5 minutes ✅
 
 ## Troubleshooting
+
+**Error: "cannot refresh materialized view concurrently"**
+✅ **FIXED!** The migration now adds the required unique index.
+- Old migration was missing `idx_vessel_latest_mmsi` index
+- New migration (above) includes it
+- Just run the updated migration again
 
 **Error: "relation vessel_latest does not exist"**
 - Your database doesn't have the base schema
