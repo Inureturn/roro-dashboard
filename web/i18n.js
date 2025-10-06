@@ -41,7 +41,9 @@ export const translations = {
     noData: 'No Data',
     activeStatus: 'Active now',
     lastSeen: 'Last seen',
-    neverSeen: 'Never recorded',
+  neverSeen: 'Never recorded',
+  neverTracked: 'NEVER TRACKED',
+  seeDetails: 'See details',
 
     // Time units
     justNow: 'just now',
@@ -169,7 +171,9 @@ export const translations = {
     noData: '데이터 없음',
     activeStatus: '활성 중',
     lastSeen: '마지막 확인',
-    neverSeen: '기록 없음',
+  neverSeen: '기록 없음',
+  neverTracked: '기록 없음',
+  seeDetails: '상세 보기',
 
     // Time units
     justNow: '방금',

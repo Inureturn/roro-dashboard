@@ -1056,6 +1056,17 @@ body.embed-mode .map-attribution {
     background: transparent; /* moved to dedicated backdrop */
     z-index: -1;
   }
+
+  /* Drag handle for bottom sheet */
+  .vessel-details .details-header::before {
+    content: '';
+    display: block;
+    width: 48px;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    margin: 0 auto 8px auto;
+  }
 }
 
 /* Backdrop for mobile overlays */
@@ -1073,6 +1084,35 @@ body.embed-mode .map-attribution {
   pointer-events: auto;
 }
 .backdrop.hidden { display: none; }
+
+/* Toast notifications */
+#toast-container {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 300;
+}
+.toast {
+  background: rgba(20, 24, 44, 0.95);
+  color: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow-medium);
+  animation: fadeSlideIn 0.2s ease;
+  font-size: 0.9rem;
+}
+.toast.success { border-left: 4px solid #4caf50; }
+.toast.warn { border-left: 4px solid #ff9800; }
+.toast.info { border-left: 4px solid #4fc3f7; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 
 
 

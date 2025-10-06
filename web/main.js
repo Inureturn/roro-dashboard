@@ -92,6 +92,20 @@ const languageToggleBtn = document.getElementById('lang-toggle');
 const languageToggleBtnMobile = document.getElementById('lang-toggle-mobile');
 const backdropEl = document.getElementById('backdrop');
 const systemInfoBtnMobile = document.getElementById('system-info-btn-mobile');
+const toastContainer = document.getElementById('toast-container');
+
+function showToast(message, type = 'info', timeout = 3000) {
+  if (!toastContainer) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = message;
+  toastContainer.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.2s ease';
+    setTimeout(() => el.remove(), 200);
+  }, timeout);
+}
 
 
 function getInitialLanguage() {
@@ -559,7 +573,7 @@ function createPopupHTML(vessel, position, mmsi) {
         <div style="font-size: 0.8rem; font-weight: ${isRecent ? '600' : '500'}; color: ${statusColor};">${statusIcon}${t('lastSeen', currentLanguage)} ${lastSeenText}</div>
       </div>
       <div style="margin-top: 0.6rem; display: flex; justify-content: flex-end;">
-        <button class="popup-see-details" data-mmsi="${mmsi}" style="background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-hover); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer;">${t('seeDetails', currentLanguage) || 'See details'}</button>
+        <button class="popup-see-details" data-mmsi="${mmsi}" style="background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-hover); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer;">${t('seeDetails', currentLanguage)}</button>
       </div>
       ${manualWarning}
     </div>
@@ -1055,7 +1069,7 @@ function showVesselDetails(mmsi) {
         <h3>${t('currentPosition', currentLanguage)}</h3>
         <div class="detail-row">
           <span class="detail-label">${t('status', currentLanguage)}</span>
-          <span class="detail-value"><span class="status-icon">❓</span> NEVER TRACKED</span>
+          <span class="detail-value"><span class="status-icon">❓</span> ${t('neverTracked', currentLanguage)}</span>
         </div>
       </div>
     `}
@@ -1352,10 +1366,20 @@ function subscribeToUpdates() {
       { event: 'INSERT', schema: 'public', table: 'vessel_positions' },
       (payload) => {
         console.log('New position:', payload.new);
+        const prev = vessels.get(payload.new.mmsi)?.lastPosition;
         updateVesselMarker(payload.new.mmsi, payload.new);
         renderVesselList();
         updateStats();
         updateLastUpdate();
+        // Lightweight alerts: first-ever position or my-fleet updates
+        const vessel = vessels.get(payload.new.mmsi);
+        if (vessel) {
+          if (!prev) {
+            showToast(`${vessel.name || payload.new.mmsi}: ${t('lastSeen', currentLanguage)} ${formatRelativeTime(payload.new.ts)}`, 'success');
+          } else if (vessel.is_my_fleet) {
+            showToast(`${vessel.name || payload.new.mmsi}: ${t('lastUpdateLabel', currentLanguage)} ${formatRelativeTime(payload.new.ts)}`, 'info');
+          }
+        }
       }
     )
     .subscribe();
@@ -1526,6 +1550,43 @@ async function init() {
       backdropEl?.classList.remove('hidden');
     }
   });
+
+  // Drag-to-close for mobile bottom sheet
+  if (vesselDetailsEl) {
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+
+    const onTouchStart = (e) => {
+      if (window.innerWidth > 768 || vesselDetailsEl.classList.contains('hidden')) return;
+      dragging = true;
+      startY = e.touches[0].clientY;
+      vesselDetailsEl.style.transition = 'none';
+    };
+    const onTouchMove = (e) => {
+      if (!dragging) return;
+      currentY = e.touches[0].clientY;
+      const delta = Math.max(0, currentY - startY);
+      vesselDetailsEl.style.transform = `translateY(${delta}px)`;
+    };
+    const onTouchEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      vesselDetailsEl.style.transition = '';
+      const delta = Math.max(0, currentY - startY);
+      // If dragged more than 120px, close
+      if (delta > 120) {
+        closeDetails();
+        vesselDetailsEl.style.transform = '';
+      } else {
+        vesselDetailsEl.style.transform = '';
+      }
+    };
+
+    vesselDetailsEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    vesselDetailsEl.addEventListener('touchmove', onTouchMove, { passive: true });
+    vesselDetailsEl.addEventListener('touchend', onTouchEnd, { passive: true });
+  }
 }
 
 
