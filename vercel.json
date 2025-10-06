@@ -1,8 +1,8 @@
 {
   "version": 2,
   "framework": "vite",
-  "installCommand": "corepack enable && corepack prepare pnpm@10.18.0 --activate && cd web && pnpm install",
-  "buildCommand": "corepack enable && corepack prepare pnpm@10.18.0 --activate && cd web && pnpm run build",
+  "installCommand": "npm i -g pnpm@10.18.0 && cd web && pnpm install",
+  "buildCommand": "npm i -g pnpm@10.18.0 && cd web && pnpm run build",
   "devCommand": "cd web && pnpm run dev",
   "outputDirectory": "web/dist",
   "routes": [
