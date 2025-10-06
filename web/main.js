@@ -66,7 +66,7 @@ async function fetchVessels() {
   const { data, error } = await supabase
     .from('vessels')
     .select('*')
-    .or('is_my_fleet.eq.true,is_competitor.eq.true');
+    .eq('is_my_fleet', true);
 
   if (error) {
     console.error('[ERROR] Error fetching vessels:', error);
