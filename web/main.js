@@ -542,7 +542,7 @@ function createPopupHTML(vessel, position, mmsi) {
   const timeSinceUpdate = Date.now() - new Date(position.ts).getTime();
   const isRecent = timeSinceUpdate < 3600000; // Less than 1 hour
   const statusColor = isRecent ? '#4caf50' : '#4fc3f7';
-  const statusIcon = !isRecent ? '📡 ' : '';
+  const statusIcon = !isRecent ? '⏳ ' : '';
   const lastSeenText = formatDateTime(position?.ts);
 
   return `
@@ -613,11 +613,10 @@ function updateVesselMarker(mmsi, position, trail = []) {
         }
       });
 
-      // Click handler for circles
+      // Click handler for circles: show popup only (no details panel)
       map.on('click', markerCircleLayerId, (e) => {
         if (e.features.length === 0) return;
         const clickedMmsi = e.features[0].properties.mmsi;
-        showVesselDetails(clickedMmsi);
         const coords = e.features[0].geometry.coordinates.slice();
         const v = vessels.get(clickedMmsi);
         if (!v) return;
@@ -824,22 +823,22 @@ function renderVesselList() {
 
   vesselListEl.innerHTML = filtered.map(vessel => {
     const lastPos = vessel.lastPosition;
-    const lastTs = lastPos?.ts || vessel.last_message_utc || vessel.updated_at;
-    const isActive = lastTs && (Date.now() - new Date(lastTs).getTime()) < 3600000;
-    const statusClass = !lastPos ? 'offline' : isActive ? '' : 'stale';
+    const isActive = !!(lastPos && (Date.now() - new Date(lastPos.ts).getTime()) < 3600000);
+    const statusClass = !lastPos ? 'offline' : (isActive ? '' : 'stale');
 
     // Show relative time for "Last seen"
     let statusText;
     let statusIcon = '';
-    if (!lastTs) {
-      statusText = t('neverSeen', currentLanguage);
-      statusIcon = '⏳'; // Waiting/never seen icon
+    if (!lastPos) {
+      const neverTrackedText = 'NEVER TRACKED';
+      statusText = neverTrackedText;
+      statusIcon = '❓'; // Never tracked
     } else if (isActive) {
       statusText = `<span style="color: #4caf50; font-weight: 600;">${t('activeStatus', currentLanguage)}</span>`;
       statusIcon = '';
     } else {
-      statusText = `${t('lastSeen', currentLanguage)} ${formatRelativeTime(lastTs)}`;
-      statusIcon = '📡'; // Lost contact icon
+      statusText = `${t('lastSeen', currentLanguage)} ${formatRelativeTime(lastPos.ts)}`;
+      statusIcon = '⏳'; // Lost connection icon
     }
 
     const rawDest = vessel.destination || lastPos?.destination || '';
@@ -1036,7 +1035,7 @@ function showVesselDetails(mmsi) {
               const timeSinceUpdate = Date.now() - new Date(pos.ts).getTime();
               const isRecent = timeSinceUpdate < 3600000; // Less than 1 hour
               const relativeTime = formatRelativeTime(pos.ts);
-              const icon = !isRecent ? '📡 ' : '';
+              const icon = !isRecent ? '⏳ ' : '';
               const color = isRecent ? '#4caf50' : 'inherit';
               return `<span style="color: ${color}; font-weight: ${isRecent ? '600' : 'inherit'};">${icon}${relativeTime}</span>`;
             })()}
@@ -1048,18 +1047,8 @@ function showVesselDetails(mmsi) {
       <div class="detail-section">
         <h3>${t('currentPosition', currentLanguage)}</h3>
         <div class="detail-row">
-          <span class="detail-label">${t('lastMessage', currentLanguage)}</span>
-          <span class="detail-value">
-            ${vessel.last_message_utc ? (() => {
-              const timeSinceUpdate = Date.now() - new Date(vessel.last_message_utc).getTime();
-              const isRecent = timeSinceUpdate < 3600000; // Less than 1 hour
-              const relativeTime = formatRelativeTime(vessel.last_message_utc);
-              const icon = !isRecent ? '📡 ' : '';
-              const color = isRecent ? '#4caf50' : 'inherit';
-              return `<span style="color: ${color}; font-weight: ${isRecent ? '600' : 'inherit'};">${icon}${relativeTime}</span>`;
-            })() : `<span style="color: #ff9800;">⏳ ${t('noData', currentLanguage)}</span>`}
-            ${vessel.last_message_utc ? `<br><small style="color: var(--text-muted); font-size: 0.85em;">${formatDateTime(vessel.last_message_utc)}</small>` : ''}
-          </span>
+          <span class="detail-label">${t('status', currentLanguage)}</span>
+          <span class="detail-value"><span class="status-icon">❓</span> NEVER TRACKED</span>
         </div>
       </div>
     `}
@@ -1088,14 +1077,7 @@ function showVesselDetails(mmsi) {
         <span class="detail-label">${t('eta', currentLanguage)}</span>
         <span class="detail-value">${etaText}</span>
       </div>
-      ${vessel.last_message_utc ? `
-      <div class="detail-row">
-        <span class="detail-label">${t('dataLastUpdated', currentLanguage) || 'Data updated'}</span>
-        <span class="detail-value" style="font-size: 0.9em; color: var(--text-muted);">
-          ${formatRelativeTime(vessel.last_message_utc)}
-        </span>
-      </div>
-      ` : ''}
+      
     </div>
 
     ${vessel.notes ? `
