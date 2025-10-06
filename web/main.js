@@ -42,7 +42,7 @@ const map = new maplibregl.Map({
 let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
-let currentFilter = 'all'; // 'all', 'my-fleet', 'competitors'
+let currentFilter = 'my-fleet'; // default to my fleet per product intent
 let lastDataUpdate = null; // Track last AIS data update
 let currentRoute = null; // Current route for navigation
 

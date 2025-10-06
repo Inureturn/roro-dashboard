@@ -162,6 +162,7 @@ function shouldEmitPosition(mmsi, lat, lon, ts) {
 // Upsert vessel static data
 async function upsertVessel(data) {
   const mmsi = String(data.mmsi);
+  const isMyFleet = FLEET_MMSIS.includes(mmsi);
   const payload = {
     mmsi,
     updated_at: new Date().toISOString()
@@ -176,6 +177,7 @@ async function upsertVessel(data) {
   if (data.beam_m !== undefined) payload.beam_m = data.beam_m;
   if (data.eta_utc) payload.eta_utc = data.eta_utc;
   if (data.last_message_utc) payload.last_message_utc = data.last_message_utc;
+  payload.is_my_fleet = isMyFleet;
 
   const { error } = await supabase
     .from('vessels')
@@ -190,7 +192,7 @@ async function upsertVessel(data) {
 
 // Ensure vessel stub exists
 async function ensureVessel(mmsi, name = null) {
-  const payload = { mmsi };
+  const payload = { mmsi, is_my_fleet: FLEET_MMSIS.includes(String(mmsi)) };
   if (name) payload.name = name;
 
   const { error } = await supabase
@@ -204,7 +206,7 @@ async function ensureVessel(mmsi, name = null) {
 
 // Update vessel activity fields (e.g., last_message_utc, destination fallback)
 async function updateVesselActivity(mmsi, fields) {
-  const payload = { mmsi, ...fields, updated_at: new Date().toISOString() };
+  const payload = { mmsi, ...fields, updated_at: new Date().toISOString(), is_my_fleet: FLEET_MMSIS.includes(String(mmsi)) };
   const { error } = await supabase
     .from('vessels')
     .upsert(payload, { onConflict: 'mmsi' });
