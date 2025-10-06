@@ -88,6 +88,7 @@ const closeInfoModalBtn = document.getElementById('close-info-modal');
 
 const themeToggleBtn = document.getElementById('theme-toggle');
 const languageToggleBtn = document.getElementById('lang-toggle');
+const backdropEl = document.getElementById('backdrop');
 
 
 function getInitialLanguage() {
@@ -1425,15 +1426,26 @@ async function init() {
   if (mobileLeftToggle && vesselSidebar) {
     mobileLeftToggle.addEventListener('click', () => {
       vesselSidebar.classList.toggle('open');
+      if (vesselSidebar.classList.contains('open')) {
+        backdropEl?.classList.add('show');
+        backdropEl?.classList.remove('hidden');
+      } else {
+        backdropEl?.classList.remove('show');
+        setTimeout(() => backdropEl?.classList.add('hidden'), 200);
+      }
     });
 
     // Close sidebar when clicking outside
-    document.addEventListener('click', (e) => {
-      if (vesselSidebar.classList.contains('open') &&
-          !vesselSidebar.contains(e.target) &&
-          !mobileLeftToggle.contains(e.target)) {
+    // Close sidebar on backdrop tap
+    backdropEl?.addEventListener('click', () => {
+      if (vesselSidebar.classList.contains('open')) {
         vesselSidebar.classList.remove('open');
       }
+      if (!vesselDetailsEl.classList.contains('hidden')) {
+        vesselDetailsEl.classList.add('hidden');
+      }
+      backdropEl.classList.remove('show');
+      setTimeout(() => backdropEl.classList.add('hidden'), 200);
     });
   }
 
@@ -1442,6 +1454,8 @@ async function init() {
       if (selectedVessel) {
         showVesselDetails(selectedVessel);
       }
+      backdropEl?.classList.add('show');
+      backdropEl?.classList.remove('hidden');
     });
   }
 
