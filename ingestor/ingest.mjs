@@ -76,6 +76,17 @@ function getEffectiveMode() {
   return 'error';
 }
 
+// Parse timestamp from AISStream (Go format: "2025-10-06 08:07:26.219583585 +0000 UTC")
+function parseTimestamp(timestamp) {
+  if (!timestamp) return null;
+  try {
+    const d = new Date(timestamp);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch {
+    return null;
+  }
+}
+
 // Parse AIS ETA from ShipStaticData. Some feeds provide a string ISO, others an object { Month, Day, Hour, Minute }
 function parseAISStaticETA(eta, refUtc) {
   if (!eta) return null;
