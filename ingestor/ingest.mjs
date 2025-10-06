@@ -466,6 +466,12 @@ function connect() {
 
   ws.on('message', (data) => {
     try {
+      if (LOG_LEVEL === 'debug') {
+        const parsed = JSON.parse(data.toString());
+        if (parsed.MetaData) {
+          console.log(`[WS] Received message for MMSI ${parsed.MetaData.MMSI}, type: ${parsed.MessageType}`);
+        }
+      }
       handleMessage(data.toString());
       lastMessageTime = Date.now();
     } catch (e) {
