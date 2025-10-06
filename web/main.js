@@ -596,9 +596,8 @@ function updateVesselMarker(mmsi, position, trail = []) {
 
   const marker = new maplibregl.Marker({
     element: el,
-    anchor: 'center',  // Center the arrow on the position
-    rotationAlignment: 'viewport',  // Keep marker upright relative to screen (fixes warping)
-    pitchAlignment: 'viewport'  // Keep marker flat on screen
+    anchor: 'center',
+    offset: [0, 0]
   })
     .setLngLat([position.lon, position.lat])
     .setPopup(popup)

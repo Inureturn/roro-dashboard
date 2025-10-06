@@ -735,6 +735,8 @@ body.light-theme .close-btn {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
+  will-change: transform !important;
+  backface-visibility: hidden !important;
 }
 
 /* Embed Mode */
