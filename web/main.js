@@ -62,12 +62,30 @@ const closeInfoModalBtn = document.getElementById('close-info-modal');
 
 // Fetch initial vessel data
 async function fetchVessels() {
+  console.log('[DEBUG] Fetching vessels from Supabase...');
   const { data, error } = await supabase
     .from('vessels')
     .select('*');
 
   if (error) {
-    console.error('Error fetching vessels:', error);
+    console.error('[ERROR] Error fetching vessels:', error);
+    vesselListEl.innerHTML = `
+      <div class="loading" style="color: #ff9800;">
+        ⚠️ Error loading vessels. Check browser console.
+      </div>
+    `;
+    return;
+  }
+
+  console.log(`[DEBUG] Fetched ${data?.length || 0} vessels from database`);
+
+  if (!data || data.length === 0) {
+    vesselListEl.innerHTML = `
+      <div class="loading">
+        No vessels in database yet. Waiting for AIS data...<br>
+        <small style="color: #8090b0; margin-top: 0.5rem;">The ingestor is collecting data. Check back in 5-10 minutes.</small>
+      </div>
+    `;
     return;
   }
 
@@ -81,6 +99,7 @@ async function fetchVessels() {
 
 // Fetch latest positions
 async function fetchPositions() {
+  console.log('[DEBUG] Fetching positions from Supabase...');
   const { data, error } = await supabase
     .from('vessel_positions')
     .select('*')
@@ -88,7 +107,14 @@ async function fetchPositions() {
     .limit(1000);
 
   if (error) {
-    console.error('Error fetching positions:', error);
+    console.error('[ERROR] Error fetching positions:', error);
+    return;
+  }
+
+  console.log(`[DEBUG] Fetched ${data?.length || 0} positions from database`);
+
+  if (!data || data.length === 0) {
+    console.warn('[WARN] No position data available yet');
     return;
   }
 
