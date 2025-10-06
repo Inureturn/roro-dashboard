@@ -59,6 +59,128 @@ body {
   font-weight: 600;
 }
 
+.info-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.1);
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: #151a2e;
+  border: 1px solid #2a3452;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #2a3452;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  font-size: 1.3rem;
+  color: #fff;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.info-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #2a3452;
+}
+
+.info-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.info-section h4 {
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 0.8rem;
+}
+
+.info-section p {
+  color: #a0b0d0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0.4rem 0;
+}
+
+.info-section strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.total-cost {
+  font-size: 1.1rem;
+  color: #4caf50 !important;
+  margin-top: 0.5rem;
+}
+
 /* Main Dashboard */
 .dashboard-main {
   display: flex;

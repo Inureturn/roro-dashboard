@@ -56,6 +56,9 @@ const totalVesselsEl = document.getElementById('total-vessels');
 const activeVesselsEl = document.getElementById('active-vessels');
 const lastUpdateEl = document.getElementById('last-update');
 const staleDataWarningEl = document.getElementById('stale-data-warning');
+const systemInfoBtn = document.getElementById('system-info-btn');
+const systemInfoModal = document.getElementById('system-info-modal');
+const closeInfoModalBtn = document.getElementById('close-info-modal');
 
 // Fetch initial vessel data
 async function fetchVessels() {
@@ -597,6 +600,20 @@ async function init() {
   // Set up event listeners
   closeDetailsBtn.addEventListener('click', closeDetails);
   vesselSearchEl.addEventListener('input', renderVesselList);
+
+  // System info modal
+  systemInfoBtn.addEventListener('click', () => {
+    systemInfoModal.classList.remove('hidden');
+  });
+  closeInfoModalBtn.addEventListener('click', () => {
+    systemInfoModal.classList.add('hidden');
+  });
+  // Close modal on outside click
+  systemInfoModal.addEventListener('click', (e) => {
+    if (e.target === systemInfoModal) {
+      systemInfoModal.classList.add('hidden');
+    }
+  });
 
   // Fleet filter tabs
   document.querySelectorAll('.filter-tab').forEach(tab => {

@@ -17,6 +17,7 @@
           <span class="stat"><span class="stat-label">Total Vessels:</span> <span id="total-vessels">0</span></span>
           <span class="stat"><span class="stat-label">Active:</span> <span id="active-vessels">0</span></span>
           <span class="stat"><span class="stat-label">Last Update:</span> <span id="last-update">Never</span></span>
+          <button class="info-btn" id="system-info-btn" title="System Info">ℹ️</button>
         </div>
       </div>
     </header>
@@ -60,6 +61,47 @@
           <div class="loading">Select a vessel to view details</div>
         </div>
       </aside>
+    </div>
+
+    <!-- System Info Modal -->
+    <div id="system-info-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>System Information</h3>
+          <button class="close-btn" id="close-info-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-section">
+            <h4>📡 Data Collection</h4>
+            <p><strong>Rate Limit:</strong> 100m or 180s (smart filtering)</p>
+            <p><strong>Updates:</strong> ~10,000 positions/day</p>
+            <p><strong>Accuracy:</strong> 1 football field (100m)</p>
+          </div>
+
+          <div class="info-section">
+            <h4>🗄️ Data Retention</h4>
+            <p><strong>Keep:</strong> Last 90 days of positions</p>
+            <p><strong>Cleanup:</strong> Runs daily at 2am</p>
+            <p><strong>Storage:</strong> <span id="db-size-estimate">~50 MB</span></p>
+          </div>
+
+          <div class="info-section">
+            <h4>⚡ Performance</h4>
+            <p><strong>View Refresh:</strong> Every 5 minutes</p>
+            <p><strong>Real-time:</strong> Instant position updates</p>
+            <p><strong>Trail Length:</strong> Last 50 positions</p>
+          </div>
+
+          <div class="info-section">
+            <h4>💰 Cost (Monthly)</h4>
+            <p><strong>VPS:</strong> $5.00 (AWS Lightsail)</p>
+            <p><strong>Database:</strong> $0.00 (Supabase Free)</p>
+            <p><strong>Map Tiles:</strong> $0.00 (MapTiler Free)</p>
+            <p><strong>AIS Data:</strong> $0.00 (AISStream Free)</p>
+            <p class="total-cost"><strong>Total: $5.00/month</strong> ✅</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

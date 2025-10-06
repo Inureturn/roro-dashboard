@@ -87,13 +87,13 @@ pm2 logs roro-ingestor  # Check it's working
 **Running locally:**
 ```bash
 cd web
-npm install
-npm run dev  # http://localhost:5173
+pnpm install
+pnpm run dev  # http://localhost:5173
 ```
 
 **Production build:**
 ```bash
-npm run build  # Creates dist/ folder
+pnpm run build  # Creates dist/ folder
 ```
 
 ---
