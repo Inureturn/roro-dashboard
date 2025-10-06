@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "framework": "vite",
+  "installCommand": "cd web && pnpm install",
+  "buildCommand": "cd web && pnpm run build",
+  "devCommand": "cd web && pnpm run dev",
+  "outputDirectory": "web/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}

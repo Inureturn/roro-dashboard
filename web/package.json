@@ -8,6 +8,11 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "engines": {
+    "node": ">=18 <=24",
+    "pnpm": ">=8"
+  },
+  "packageManager": "pnpm@10.18.0",
   "keywords": [],
   "author": "",
   "license": "ISC",
