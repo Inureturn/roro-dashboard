@@ -38,6 +38,20 @@ export const translations = {
     noData: 'No Data',
     activeStatus: 'Active now',
     lastSeen: 'Last seen',
+    neverSeen: 'Never recorded',
+
+    // Time units
+    justNow: 'just now',
+    minuteAgo: 'min ago',
+    minutesAgo: 'mins ago',
+    hourAgo: 'hour ago',
+    hoursAgo: 'hours ago',
+    dayAgo: 'day ago',
+    daysAgo: 'days ago',
+    monthAgo: 'month ago',
+    monthsAgo: 'months ago',
+    yearAgo: 'year ago',
+    yearsAgo: 'years ago',
 
     // Units
     knotsAbbr: 'kn',
@@ -135,6 +149,20 @@ export const translations = {
     noData: '데이터 없음',
     activeStatus: '활성 중',
     lastSeen: '마지막 확인',
+    neverSeen: '기록 없음',
+
+    // Time units
+    justNow: '방금',
+    minuteAgo: '분 전',
+    minutesAgo: '분 전',
+    hourAgo: '시간 전',
+    hoursAgo: '시간 전',
+    dayAgo: '일 전',
+    daysAgo: '일 전',
+    monthAgo: '개월 전',
+    monthsAgo: '개월 전',
+    yearAgo: '년 전',
+    yearsAgo: '년 전',
 
     // Units
     knotsAbbr: '노트',

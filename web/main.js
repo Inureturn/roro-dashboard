@@ -615,7 +615,7 @@ function renderVesselList() {
     // Show relative time for "Last seen"
     let statusText;
     if (!lastTs) {
-      statusText = t('noData', currentLanguage);
+      statusText = t('neverSeen', currentLanguage);
     } else if (isActive) {
       statusText = t('activeStatus', currentLanguage);
     } else {
