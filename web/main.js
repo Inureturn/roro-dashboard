@@ -42,6 +42,7 @@ const map = new maplibregl.Map({
 let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
+let currentFilter = 'all'; // 'all', 'my-fleet', 'competitors'
 
 // DOM Elements
 const vesselListEl = document.getElementById('vessel-list');
@@ -157,6 +158,11 @@ function renderVesselList() {
   const vesselArray = Array.from(vessels.values());
 
   const filtered = vesselArray.filter(vessel => {
+    // Apply fleet filter
+    if (currentFilter === 'my-fleet' && !vessel.is_my_fleet) return false;
+    if (currentFilter === 'competitors' && vessel.is_my_fleet) return false;
+
+    // Apply search filter
     const name = (vessel.name || '').toLowerCase();
     const mmsi = vessel.mmsi.toLowerCase();
     return name.includes(searchTerm) || mmsi.includes(searchTerm);
@@ -315,9 +321,16 @@ function closeDetails() {
 
 // Update stats
 function updateStats() {
-  totalVesselsEl.textContent = vessels.size;
+  // Filter vessels based on current filter
+  const filtered = Array.from(vessels.values()).filter(vessel => {
+    if (currentFilter === 'my-fleet') return vessel.is_my_fleet;
+    if (currentFilter === 'competitors') return !vessel.is_my_fleet;
+    return true; // 'all'
+  });
 
-  const activeCount = Array.from(vessels.values()).filter(vessel => {
+  totalVesselsEl.textContent = filtered.length;
+
+  const activeCount = filtered.filter(vessel => {
     const pos = vessel.lastPosition;
     return pos && (Date.now() - new Date(pos.ts).getTime()) < 3600000;
   }).length;
@@ -370,6 +383,17 @@ async function init() {
   // Set up event listeners
   closeDetailsBtn.addEventListener('click', closeDetails);
   vesselSearchEl.addEventListener('input', renderVesselList);
+
+  // Fleet filter tabs
+  document.querySelectorAll('.filter-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentFilter = tab.dataset.filter;
+      renderVesselList();
+      updateStats();
+    });
+  });
 
   // Refresh positions every 30 seconds
   setInterval(fetchPositions, 30000);

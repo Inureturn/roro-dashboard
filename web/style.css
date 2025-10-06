@@ -88,6 +88,36 @@ body {
   color: #fff;
 }
 
+.filter-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filter-tab {
+  flex: 1;
+  padding: 0.6rem;
+  background: #0a0e27;
+  border: 1px solid #2a3452;
+  border-radius: 6px;
+  color: #a0b0d0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-tab:hover {
+  background: #1a1f38;
+  border-color: #3a4562;
+}
+
+.filter-tab.active {
+  background: #2a5298;
+  border-color: #4a7fc9;
+  color: #fff;
+  font-weight: 600;
+}
+
 .search-input {
   width: 100%;
   padding: 0.7rem;
