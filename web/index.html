@@ -3,25 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RoRo Fleet Dashboard</title>
+  <title>RoRo Fleet Dashboard v2.0.1</title>
+
+  <!-- Aggressive cache prevention -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <link href='https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css' rel='stylesheet' />
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=2.0.1">
 </head>
 <body>
   <div id="app">
     <!-- Header -->
     <header class="dashboard-header">
       <div class="header-content">
-        <h1>🚢 RoRo Fleet Dashboard</h1>
+        <h1 data-i18n="title">🚢 RoRo Fleet Dashboard</h1>
         <div class="header-stats">
-          <span class="stat"><span class="stat-label">Total Vessels:</span> <span id="total-vessels">0</span></span>
-          <span class="stat"><span class="stat-label">Active:</span> <span id="active-vessels">0</span></span>
-          <span class="stat"><span class="stat-label">Last Update:</span> <span id="last-update">Never</span></span>
+          <span class="stat"><span class="stat-label" data-i18n="totalVessels">Total Vessels:</span> <span id="total-vessels">0</span></span>
+          <span class="stat"><span class="stat-label" data-i18n="active">Active:</span> <span id="active-vessels">0</span></span>
+          <span class="stat"><span class="stat-label" data-i18n="lastUpdate">Last Update:</span> <span id="last-update" data-i18n="never">Never</span></span>
 
           <div class="header-controls">
-            <button class="icon-btn" id="theme-toggle" title="Toggle theme">🌙</button>
-            <button class="icon-btn" id="lang-toggle" title="Switch language">🌐</button>
-            <button class="info-btn" id="system-info-btn" title="System Info">ℹ️</button>
+            <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">🌙</button>
+            <button class="icon-btn" id="lang-toggle" aria-label="Switch language" title="Switch language">🌐</button>
+            <button class="info-btn" id="system-info-btn" data-i18n-title="systemInfoButton" title="System Info">ℹ️</button>
           </div>
         </div>
       </div>
@@ -32,21 +38,21 @@
       <!-- Vessel List Sidebar -->
       <aside class="vessel-sidebar">
         <div class="sidebar-header">
-          <h2>Fleet</h2>
+          <h2 data-i18n="fleet">Fleet</h2>
           <div class="filter-tabs">
-            <button class="filter-tab active" data-filter="my-fleet">My Fleet</button>
-            <button class="filter-tab" data-filter="tracked">All Tracked</button>
+            <button class="filter-tab active" data-filter="my-fleet" data-i18n="myFleet">My Fleet</button>
+            <button class="filter-tab" data-filter="tracked" data-i18n="allTracked">All Tracked</button>
           </div>
-          <input type="text" id="vessel-search" placeholder="Search vessels..." class="search-input">
+          <input type="text" id="vessel-search" placeholder="Search vessels..." data-i18n-placeholder="searchPlaceholder" class="search-input">
         </div>
         <div id="vessel-list" class="vessel-list">
-          <div class="loading">Loading vessels...</div>
+          <div class="loading" data-i18n="loading">Loading vessels...</div>
         </div>
       </aside>
 
       <!-- Map Container -->
       <div class="map-container">
-        <div id="stale-data-warning" class="stale-data-warning hidden">
+        <div id="stale-data-warning" class="stale-data-warning hidden" data-i18n="staleDataWarning">
           ⚠️ Data may be outdated. Last AIS update received more than 5 minutes ago.
         </div>
         <div id="map"></div>
@@ -58,11 +64,11 @@
       <!-- Vessel Details Panel (Initially Hidden) -->
       <aside class="vessel-details hidden" id="vessel-details">
         <div class="details-header">
-          <h2 id="details-title">Vessel Details</h2>
+          <h2 id="details-title" data-i18n="vesselDetails">Vessel Details</h2>
           <button class="close-btn" id="close-details">&times;</button>
         </div>
         <div class="details-content" id="details-content">
-          <div class="loading">Select a vessel to view details</div>
+          <div class="loading" data-i18n="selectVessel">Select a vessel to view details</div>
         </div>
       </aside>
     </div>
@@ -71,35 +77,35 @@
     <div id="system-info-modal" class="modal hidden">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>System Information</h3>
+          <h3 data-i18n="systemInfo">System Information</h3>
           <button class="close-btn" id="close-info-modal">&times;</button>
         </div>
         <div class="modal-body">
           <div class="info-section">
-            <h4>📡 Data Collection</h4>
-            <p><strong>Rate Limit:</strong> 100m or 180s (smart filtering)</p>
-            <p><strong>Updates:</strong> ~10,000 positions/day</p>
-            <p><strong>Accuracy:</strong> 1 football field (100m)</p>
+            <h4 data-i18n="dataCollection">📡 Data Collection</h4>
+            <p><strong data-i18n="rateLimit">Rate Limit:</strong> <span data-i18n="rateLimitValue">100m or 180s (smart filtering)</span></p>
+            <p><strong data-i18n="updates">Updates:</strong> <span data-i18n="updatesValue">~10,000 positions/day</span></p>
+            <p><strong data-i18n="accuracy">Accuracy:</strong> <span data-i18n="accuracyValue">1 football field (100m)</span></p>
           </div>
 
           <div class="info-section">
-            <h4>🗄️ Data Retention</h4>
-            <p><strong>Keep:</strong> Last 90 days of positions</p>
-            <p><strong>Cleanup:</strong> Runs daily at 2am</p>
-            <p><strong>Storage:</strong> <span id="db-size-estimate">~50 MB</span></p>
+            <h4 data-i18n="dataRetention">🗄️ Data Retention</h4>
+            <p><strong data-i18n="keep">Keep:</strong> <span data-i18n="keepValue">Last 90 days of positions</span></p>
+            <p><strong data-i18n="cleanup">Cleanup:</strong> <span data-i18n="cleanupValue">Runs daily at 2am</span></p>
+            <p><strong data-i18n="storage">Storage:</strong> <span id="db-size-estimate">~50 MB</span></p>
           </div>
 
           <div class="info-section">
-            <h4>⚡ Performance</h4>
-            <p><strong>View Refresh:</strong> Every 5 minutes</p>
-            <p><strong>Real-time:</strong> Instant position updates</p>
-            <p><strong>Trail Length:</strong> Last 50 positions</p>
+            <h4 data-i18n="performance">⚡ Performance</h4>
+            <p><strong data-i18n="viewRefresh">View Refresh:</strong> <span data-i18n="viewRefreshValue">Every 5 minutes</span></p>
+            <p><strong data-i18n="realtime">Real-time:</strong> <span data-i18n="realtimeValue">Instant position updates</span></p>
+            <p><strong data-i18n="trailLength">Trail Length:</strong> <span data-i18n="trailLengthValue">Last 50 positions</span></p>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="/main.js?v=2.0.0"></script>
+  <script type="module" src="/main.js?v=2.0.1"></script>
 </body>
 </html>

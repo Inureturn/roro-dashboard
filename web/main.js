@@ -1,22 +1,43 @@
-import './style.css';
+﻿import './style.css';
 import maplibregl from 'maplibre-gl';
 import { createClient } from '@supabase/supabase-js';
+import { t, getCurrentLanguage, setLanguage, SUPPORTED_LANGUAGES } from './i18n.js';
 
 // Version for cache busting
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 console.log(`[APP] RoRo Dashboard v${APP_VERSION}`);
 
 // Configuration from environment variables
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rbffmfuvqgxlthzvmtir.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiZmZtZnV2cWd4bHRoenZtdGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2NjU5MTAsImV4cCI6MjA3NTI0MTkxMH0.iJ4N1s6r4P9Uw1Ifzfd6PQSX5p1mH5VWeCIIRFSnL2k';
+const THEMES = { DARK: 'dark', LIGHT: 'light' };
+const THEME_STORAGE_KEY = 'dashboard-theme';
+const MAP_STYLES = {
+  [THEMES.DARK]: 'https://api.maptiler.com/maps/dataviz-dark/style.json?key=' + MAPTILER_KEY,
+  [THEMES.LIGHT]: 'https://api.maptiler.com/maps/dataviz/style.json?key=' + MAPTILER_KEY
+};
+const LOCALE_MAP = { en: 'en-US', ko: 'ko-KR' };
+
+let currentLanguage = getInitialLanguage();
+let currentTheme = detectInitialTheme();
+let currentMapStyle = MAP_STYLES[currentTheme];
+let mapLoaded = false;
+
+if (document?.documentElement) {
+  document.documentElement.lang = currentLanguage;
+}
+
+if (document?.body) {
+  document.body.classList.toggle('light-theme', currentTheme === THEMES.LIGHT);
+}
 
 // Check for MapTiler API key
 if (!MAPTILER_KEY) {
   document.getElementById('map').innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff9800; text-align: center; padding: 2rem;">
       <div>
-        <h2>⚠️ MapTiler API Key Required</h2>
+        <h2>Ã¢Å¡Â Ã¯Â¸Â MapTiler API Key Required</h2>
         <p>Please add your MapTiler API key to <code>.env</code> file:</p>
         <ol style="text-align: left; display: inline-block; margin-top: 1rem;">
           <li>Sign up at <a href="https://cloud.maptiler.com/account/keys/" target="_blank">cloud.maptiler.com</a> (FREE)</li>
@@ -24,7 +45,7 @@ if (!MAPTILER_KEY) {
           <li>Add to <code>web/.env</code>: <code>VITE_MAPTILER_KEY=your_key_here</code></li>
           <li>Restart: <code>npm run dev</code></li>
         </ol>
-        <p style="margin-top: 1rem; color: #4caf50;">✅ Free tier: 100,000 map loads/month</p>
+        <p style="margin-top: 1rem; color: #4caf50;">Ã¢Å“â€¦ Free tier: 100,000 map loads/month</p>
       </div>
     </div>
   `;
@@ -37,7 +58,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Initialize MapLibre with MapTiler tiles (PRD compliant)
 const map = new maplibregl.Map({
   container: 'map',
-  style: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`,
+  style: currentMapStyle,
   center: [30, 40], // Mediterranean Sea - where most vessels are
   zoom: 2.5 // Lower zoom to see more area
 });
@@ -64,7 +85,214 @@ const systemInfoBtn = document.getElementById('system-info-btn');
 const systemInfoModal = document.getElementById('system-info-modal');
 const closeInfoModalBtn = document.getElementById('close-info-modal');
 
+const themeToggleBtn = document.getElementById('theme-toggle');
+const languageToggleBtn = document.getElementById('lang-toggle');
+
+
+function getInitialLanguage() {
+  const lang = getCurrentLanguage();
+  return SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
+}
+
+function detectInitialTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === THEMES.DARK || stored === THEMES.LIGHT) {
+      return stored;
+    }
+  } catch (error) {
+    console.warn('[THEME] Unable to read stored theme preference', error);
+  }
+
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    return THEMES.LIGHT;
+  }
+  return THEMES.DARK;
+}
+
+function getLocale() {
+  return LOCALE_MAP[currentLanguage] || 'en-US';
+}
+
+function formatDateTime(value) {
+  if (!value) return t('na', currentLanguage);
+  try {
+    return new Date(value).toLocaleString(getLocale(), { hour12: currentLanguage === 'en' });
+  } catch (error) {
+    console.warn('[FORMAT] Unable to format date', error);
+    return new Date(value).toString();
+  }
+}
+
+function formatEtaCountdown(hours) {
+  if (!Number.isFinite(hours) || hours <= 0) return '';
+  if (hours < 24) {
+    return t('etaInHours', currentLanguage).replace('{hours}', Math.round(hours));
+  }
+  return t('etaInDays', currentLanguage).replace('{days}', Math.round(hours / 24));
+}
+
+// Format relative time (e.g., "2 mins ago", "3 hours ago", "5 days ago")
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return t('na', currentLanguage);
+
+  try {
+    const now = Date.now();
+    const then = new Date(timestamp).getTime();
+    const diffMs = now - then;
+
+    if (diffMs < 0) return t('justNow', currentLanguage) || 'just now'; // Future time
+
+    const seconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const months = Math.floor(days / 30);
+    const years = Math.floor(days / 365);
+
+    if (seconds < 60) return t('justNow', currentLanguage) || 'just now';
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? (t('minuteAgo', currentLanguage) || 'min ago') : (t('minutesAgo', currentLanguage) || 'mins ago')}`;
+    if (hours < 24) return `${hours} ${hours === 1 ? (t('hourAgo', currentLanguage) || 'hour ago') : (t('hoursAgo', currentLanguage) || 'hours ago')}`;
+    if (days < 30) return `${days} ${days === 1 ? (t('dayAgo', currentLanguage) || 'day ago') : (t('daysAgo', currentLanguage) || 'days ago')}`;
+    if (months < 12) return `${months} ${months === 1 ? (t('monthAgo', currentLanguage) || 'month ago') : (t('monthsAgo', currentLanguage) || 'months ago')}`;
+    return `${years} ${years === 1 ? (t('yearAgo', currentLanguage) || 'year ago') : (t('yearsAgo', currentLanguage) || 'years ago')}`;
+  } catch (error) {
+    console.warn('[FORMAT] Unable to format relative time', error);
+    return t('na', currentLanguage);
+  }
+}
+
+function applyStaticTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (key) el.textContent = t(key, currentLanguage);
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (key) el.setAttribute('placeholder', t(key, currentLanguage));
+  });
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.dataset.i18nTitle;
+    if (key) {
+      const value = t(key, currentLanguage);
+      el.setAttribute('title', value);
+      el.setAttribute('aria-label', value);
+    }
+  });
+}
+
+function updateThemeControl() {
+  if (!themeToggleBtn) return;
+  const icon = currentTheme === THEMES.DARK ? '🌙' : '☀️';
+  const nextThemeTitle = currentTheme === THEMES.DARK ? t('themeToLight', currentLanguage) : t('themeToDark', currentLanguage);
+  themeToggleBtn.textContent = icon;
+  themeToggleBtn.setAttribute('title', nextThemeTitle);
+  themeToggleBtn.setAttribute('aria-label', nextThemeTitle);
+}
+
+
+function updateLanguageToggle() {
+  if (!languageToggleBtn) return;
+  const nextLang = currentLanguage === 'en' ? 'ko' : 'en';
+  const titleKey = nextLang === 'ko' ? 'switchLanguageToKorean' : 'switchLanguageToEnglish';
+  const title = t(titleKey, currentLanguage);
+  languageToggleBtn.textContent = nextLang === 'ko' ? 'KR' : 'EN';
+  languageToggleBtn.setAttribute('title', title);
+  languageToggleBtn.setAttribute('aria-label', title);
+}
+
+function applyTheme(theme, { persist = true, updateMapStyle = true } = {}) {
+  if (theme !== THEMES.DARK && theme !== THEMES.LIGHT) {
+    theme = THEMES.DARK;
+  }
+
+  currentTheme = theme;
+
+  if (document?.body) {
+    document.body.classList.toggle('light-theme', theme === THEMES.LIGHT);
+  }
+
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (error) {
+      console.warn('[THEME] Unable to persist theme preference', error);
+    }
+  }
+
+  updateThemeControl();
+
+  if (updateMapStyle && mapLoaded) {
+    const targetStyle = MAP_STYLES[theme];
+    if (targetStyle && targetStyle !== currentMapStyle) {
+      currentMapStyle = targetStyle;
+      map.setStyle(targetStyle);
+    }
+  }
+}
+
+function applyLanguage(lang, { persist = true, reRender = true } = {}) {
+  if (!SUPPORTED_LANGUAGES.includes(lang)) {
+    lang = 'en';
+  }
+
+  currentLanguage = lang;
+
+  if (persist) {
+    setLanguage(lang);
+  }
+
+  if (document?.documentElement) {
+    document.documentElement.lang = lang;
+  }
+
+  applyStaticTranslations();
+  updateLanguageToggle();
+  updateThemeControl();
+  document.title = `${t('title', currentLanguage)} v${APP_VERSION}`;
+
+  if (!lastDataUpdate) {
+    lastUpdateEl.textContent = t('never', currentLanguage);
+  }
+
+  if (selectedVessel) {
+    showVesselDetails(selectedVessel);
+  } else {
+    resetDetailsPanel();
+  }
+
+  if (reRender) {
+    renderVesselList();
+    updateStats();
+    updateAllMarkerVisibility();
+  }
+}
+
+function formatSpeed(value) {
+  if (value === undefined || value === null) return t('na', currentLanguage);
+  return `${Number(value).toFixed(1)} ${t('knotsAbbr', currentLanguage)}`;
+}
+
+function resetDetailsPanel() {
+  if (detailsContentEl) {
+    detailsContentEl.innerHTML = `<div class="loading">${t('selectVessel', currentLanguage)}</div>`;
+  }
+}
+
+function refreshMapAfterStyleChange() {
+  fetchPositions();
+  updateAllMarkerVisibility();
+}
+
+applyLanguage(currentLanguage, { persist: false, reRender: false });
+applyTheme(currentTheme, { persist: false, updateMapStyle: false });
+
+
 // Fetch initial vessel data (my fleet + competitors)
+
+
 async function fetchVessels() {
   console.log('[DEBUG] Fetching vessels from Supabase...');
   const { data, error } = await supabase
@@ -76,7 +304,7 @@ async function fetchVessels() {
     console.error('[ERROR] Error fetching vessels:', error);
     vesselListEl.innerHTML = `
       <div class="loading" style="color: #ff9800;">
-        ⚠️ Error loading vessels. Check browser console.
+        âš ï¸ ${t('errorLoading', currentLanguage)}
       </div>
     `;
     return;
@@ -87,8 +315,8 @@ async function fetchVessels() {
   if (!data || data.length === 0) {
     vesselListEl.innerHTML = `
       <div class="loading">
-        No vessels in database yet. Waiting for AIS data...<br>
-        <small style="color: #8090b0; margin-top: 0.5rem;">The ingestor is collecting data. Check back in 5-10 minutes.</small>
+        ${t('noVesselsYet', currentLanguage)}<br>
+        <small style="color: #8090b0; margin-top: 0.5rem;">${t('checkBack', currentLanguage)}</small>
       </div>
     `;
     return;
@@ -101,6 +329,7 @@ async function fetchVessels() {
   renderVesselList();
   updateStats();
 }
+
 
 // Fetch latest positions
 async function fetchPositions() {
@@ -149,16 +378,15 @@ async function fetchPositions() {
 }
 
 // Update vessel marker on map
+
 function updateVesselMarker(mmsi, position, trail = []) {
   const vessel = vessels.get(mmsi);
   if (!vessel) return;
 
-  // Remove old marker if exists
   if (markers.has(mmsi)) {
     markers.get(mmsi).marker.remove();
   }
 
-  // Remove old trail line if exists
   const trailSourceId = `trail-${mmsi}`;
   const trailLayerId = `trail-line-${mmsi}`;
   if (map.getLayer(trailLayerId)) {
@@ -168,7 +396,6 @@ function updateVesselMarker(mmsi, position, trail = []) {
     map.removeSource(trailSourceId);
   }
 
-  // Add trail line if we have positions
   if (trail.length > 1) {
     const coordinates = trail.map(pos => [pos.lon, pos.lat]).reverse();
 
@@ -195,13 +422,12 @@ function updateVesselMarker(mmsi, position, trail = []) {
     });
   }
 
-  // Create arrow marker element pointing in heading/course direction
   const el = document.createElement('div');
   el.className = 'vessel-marker';
-  const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
-  const heading = position.heading_deg || position.cog_deg || 0;
 
-  // Create SVG arrow
+  const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
+  const heading = position.heading_deg ?? position.cog_deg ?? 0;
+
   el.innerHTML = `
     <svg width="32" height="32" viewBox="0 0 32 32" style="transform: rotate(${heading}deg);">
       <path d="M16 2 L26 28 L16 22 L6 28 Z"
@@ -217,32 +443,35 @@ function updateVesselMarker(mmsi, position, trail = []) {
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
   `;
 
-  // Add vessel name on hover
   el.title = vessel.name || `MMSI ${mmsi}`;
 
-  // Create popup with enhanced info
-  const destination = vessel.destination || position.destination || 'N/A';
-  const eta = vessel.eta_utc ? new Date(vessel.eta_utc).toLocaleString() : 'N/A';
-  const navStatus = position.nav_status || 'N/A';
+  const destination = vessel.destination || position.destination || t('na', currentLanguage);
+  const eta = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
+  const navStatus = position.nav_status || t('na', currentLanguage);
+  const courseValue = position.cog_deg !== undefined && position.cog_deg !== null
+    ? `${Math.round(position.cog_deg)}${t('degrees', currentLanguage)}`
+    : t('na', currentLanguage);
+  const headingValue = position.heading_deg !== undefined && position.heading_deg !== null
+    ? `${position.heading_deg}${t('degrees', currentLanguage)}`
+    : t('na', currentLanguage);
 
   const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
     <div class="popup-vessel-name">${vessel.name || mmsi}</div>
     <div class="popup-details">
-      <div><strong>MMSI:</strong> ${mmsi}</div>
-      ${vessel.imo ? `<div><strong>IMO:</strong> ${vessel.imo}</div>` : ''}
-      <div><strong>Speed:</strong> ${position.sog_knots?.toFixed(1) || 'N/A'} kn</div>
-      <div><strong>Course:</strong> ${position.cog_deg?.toFixed(0) || 'N/A'}°</div>
-      ${position.heading_deg ? `<div><strong>Heading:</strong> ${position.heading_deg}°</div>` : ''}
-      <div><strong>Status:</strong> ${navStatus}</div>
-      <div><strong>Destination:</strong> ${destination}</div>
-      ${vessel.eta_utc ? `<div><strong>ETA:</strong> ${eta}</div>` : ''}
+      <div><strong>${t('mmsi', currentLanguage)}:</strong> ${mmsi}</div>
+      ${vessel.imo ? `<div><strong>${t('imo', currentLanguage)}:</strong> ${vessel.imo}</div>` : ''}
+      <div><strong>${t('speed', currentLanguage)}:</strong> ${formatSpeed(position.sog_knots ?? 0)}</div>
+      <div><strong>${t('course', currentLanguage)}:</strong> ${courseValue}</div>
+      ${position.heading_deg !== undefined && position.heading_deg !== null ? `<div><strong>${t('heading', currentLanguage)}:</strong> ${headingValue}</div>` : ''}
+      <div><strong>${t('status', currentLanguage)}:</strong> ${navStatus}</div>
+      <div><strong>${t('destination', currentLanguage)}:</strong> ${destination}</div>
+      ${vessel.eta_utc ? `<div><strong>${t('eta', currentLanguage)}:</strong> ${eta}</div>` : ''}
       <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #8090b0;">
-        ${new Date(position.ts).toLocaleString()}
+        ${formatDateTime(position.ts)}
       </div>
     </div>
   `);
 
-  // Create and add marker
   const marker = new maplibregl.Marker(el)
     .setLngLat([position.lon, position.lat])
     .setPopup(popup)
@@ -253,13 +482,10 @@ function updateVesselMarker(mmsi, position, trail = []) {
   });
 
   markers.set(mmsi, { marker, trail: trailLayerId });
-
-  // Update vessel data with latest position
   vessels.set(mmsi, { ...vessel, lastPosition: position });
-
-  // Apply filter visibility
   updateMarkerVisibility(mmsi);
 }
+
 
 // Update marker visibility based on current filter
 function updateMarkerVisibility(mmsi) {
@@ -291,68 +517,76 @@ function updateAllMarkerVisibility() {
 }
 
 // Render vessel list
+
 function renderVesselList() {
-  const searchTerm = vesselSearchEl.value.toLowerCase();
+  const searchTerm = (vesselSearchEl.value || '').toLowerCase();
   const vesselArray = Array.from(vessels.values());
 
   const filtered = vesselArray.filter(vessel => {
-    // Apply filter
     if (currentFilter === 'my-fleet' && !vessel.is_my_fleet) return false;
     if (currentFilter === 'competitors' && !vessel.is_competitor) return false;
-    // 'tracked' shows all vessels (both fleet and competitors)
-    // No filter needed for 'tracked' - it's the default "show all" view
 
-    // Apply search filter
     const name = (vessel.name || '').toLowerCase();
     const mmsi = vessel.mmsi.toLowerCase();
     return name.includes(searchTerm) || mmsi.includes(searchTerm);
   });
 
   if (filtered.length === 0) {
-    vesselListEl.innerHTML = '<div class="loading">No vessels found</div>';
+    vesselListEl.innerHTML = `<div class="loading">${t('noVessels', currentLanguage)}</div>`;
     return;
   }
 
   vesselListEl.innerHTML = filtered.map(vessel => {
     const lastPos = vessel.lastPosition;
     const lastTs = lastPos?.ts || vessel.last_message_utc || vessel.updated_at;
-    const isActive = lastTs && (Date.now() - new Date(lastTs).getTime()) < 3600000; // Active if < 1 hour
+    const isActive = lastTs && (Date.now() - new Date(lastTs).getTime()) < 3600000;
     const statusClass = !lastPos ? 'offline' : isActive ? '' : 'stale';
 
-    // Format destination (truncate if too long)
-    const destination = (vessel.destination || lastPos?.destination || '').slice(0, 20);
-    const destDisplay = destination ? `→ ${destination}` : '';
+    // Show relative time for "Last seen"
+    let statusText;
+    if (!lastTs) {
+      statusText = t('noData', currentLanguage);
+    } else if (isActive) {
+      statusText = t('activeStatus', currentLanguage);
+    } else {
+      statusText = `${t('lastSeen', currentLanguage)} ${formatRelativeTime(lastTs)}`;
+    }
 
-    // Calculate ETA countdown
+    const destination = (vessel.destination || lastPos?.destination || '').slice(0, 20).trim();
+    const destDisplay = destination ? `&rarr; ${destination}` : '';
+
     let etaDisplay = '';
     if (vessel.eta_utc) {
       const etaTime = new Date(vessel.eta_utc).getTime();
       const now = Date.now();
       const hoursUntil = Math.round((etaTime - now) / (1000 * 60 * 60));
-      if (hoursUntil > 0 && hoursUntil < 168) { // Show if within 1 week
-        etaDisplay = hoursUntil < 24 ? `ETA ${hoursUntil}h` : `ETA ${Math.round(hoursUntil/24)}d`;
+      if (hoursUntil > 0 && hoursUntil < 168) {
+        etaDisplay = formatEtaCountdown(hoursUntil);
       }
     }
+
+    const speedDisplay = lastPos ? formatSpeed(lastPos.sog_knots ?? 0) : '';
+    const vesselName = vessel.name || t('unknownVessel', currentLanguage);
+    const mmsiLabel = t('mmsi', currentLanguage);
 
     return `
       <div class="vessel-item ${selectedVessel === vessel.mmsi ? 'active' : ''}"
            data-mmsi="${vessel.mmsi}">
-        <div class="vessel-name">${vessel.name || 'Unknown Vessel'}</div>
-        <div class="vessel-mmsi">MMSI: ${vessel.mmsi}</div>
+        <div class="vessel-name">${vesselName}</div>
+        <div class="vessel-mmsi">${mmsiLabel}: ${vessel.mmsi}</div>
         ${destDisplay ? `<div class="vessel-destination" style="font-size: 0.75rem; color: #8090b0; margin-top: 0.25rem;">${destDisplay}</div>` : ''}
         <div class="vessel-status">
           <span class="status-indicator">
             <span class="status-dot ${statusClass}"></span>
-            ${!lastTs ? 'No Data' : isActive ? 'Active' : 'Last seen > 1h'}
+            ${statusText}
           </span>
-          ${lastPos ? `<span>${lastPos.sog_knots?.toFixed(1) || '0.0'} kn</span>` : ''}
+          ${speedDisplay ? `<span>${speedDisplay}</span>` : ''}
           ${etaDisplay ? `<span style="color: #4caf50; font-size: 0.7rem;">${etaDisplay}</span>` : ''}
         </div>
       </div>
     `;
   }).join('');
 
-  // Add click handlers
   vesselListEl.querySelectorAll('.vessel-item').forEach(item => {
     item.addEventListener('click', () => {
       const mmsi = item.dataset.mmsi;
@@ -361,135 +595,173 @@ function renderVesselList() {
   });
 }
 
+
 // Show vessel details panel
+
 function showVesselDetails(mmsi) {
   selectedVessel = mmsi;
   const vessel = vessels.get(mmsi);
   if (!vessel) return;
 
-  // Update URL if not already set
   if (currentRoute !== 'vessel' || window.location.hash !== `#/vessel/${mmsi}`) {
     window.location.hash = `/vessel/${mmsi}`;
   }
 
   const pos = vessel.lastPosition;
+  const lengthText = vessel.length_m ? `${vessel.length_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
+  const beamText = vessel.beam_m ? `${vessel.beam_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
+  const draughtText = vessel.max_draught_m ? `${vessel.max_draught_m} ${t('meters', currentLanguage)}` : t('na', currentLanguage);
+  const destinationText = vessel.destination || pos?.destination || t('na', currentLanguage);
+  const etaText = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
+
+  const speedText = pos ? formatSpeed(pos.sog_knots ?? 0) : t('na', currentLanguage);
+  const courseText = pos?.cog_deg !== undefined && pos?.cog_deg !== null
+    ? `${Math.round(pos.cog_deg)}Â°`
+    : t('na', currentLanguage);
+  const headingText = pos?.heading_deg !== undefined && pos?.heading_deg !== null
+    ? `${pos.heading_deg}Â°`
+    : t('na', currentLanguage);
+  const statusText = pos?.nav_status || t('na', currentLanguage);
 
   detailsContentEl.innerHTML = `
     <div class="detail-section">
-      <h3>Vessel Information</h3>
+      <h3>${t('vesselInformation', currentLanguage)}</h3>
       <div class="detail-row">
-        <span class="detail-label">Name</span>
-        <span class="detail-value">${vessel.name || 'Unknown'}</span>
+        <span class="detail-label">${t('name', currentLanguage)}</span>
+        <span class="detail-value">${vessel.name || t('unknown', currentLanguage)}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">MMSI</span>
+        <span class="detail-label">${t('mmsi', currentLanguage)}</span>
         <span class="detail-value">${vessel.mmsi}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">IMO</span>
-        <span class="detail-value">${vessel.imo || 'N/A'}</span>
+        <span class="detail-label">${t('imo', currentLanguage)}</span>
+        <span class="detail-value">${vessel.imo || t('na', currentLanguage)}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Call Sign</span>
-        <span class="detail-value">${vessel.callsign || 'N/A'}</span>
+        <span class="detail-label">${t('callSign', currentLanguage)}</span>
+        <span class="detail-value">${vessel.callsign || t('na', currentLanguage)}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Type</span>
-        <span class="detail-value">${vessel.type || 'N/A'}</span>
+        <span class="detail-label">${t('type', currentLanguage)}</span>
+        <span class="detail-value">${vessel.type || t('na', currentLanguage)}</span>
       </div>
       ${vessel.flag ? `
       <div class="detail-row">
-        <span class="detail-label">Flag</span>
+        <span class="detail-label">${t('flag', currentLanguage)}</span>
         <span class="detail-value">${vessel.flag}</span>
       </div>
       ` : ''}
       ${vessel.operator ? `
       <div class="detail-row">
-        <span class="detail-label">Operator</span>
+        <span class="detail-label">${t('operator', currentLanguage)}</span>
         <span class="detail-value">${vessel.operator}</span>
       </div>
       ` : ''}
       ${vessel.operator_group ? `
       <div class="detail-row">
-        <span class="detail-label">Operator Group</span>
+        <span class="detail-label">${t('operatorGroup', currentLanguage)}</span>
         <span class="detail-value">${vessel.operator_group}</span>
       </div>
       ` : ''}
     </div>
 
     <div class="detail-section">
-      <h3>Dimensions</h3>
+      <h3>${t('dimensions', currentLanguage)}</h3>
       <div class="detail-row">
-        <span class="detail-label">Length</span>
-        <span class="detail-value">${vessel.length_m ? vessel.length_m + ' m' : 'N/A'}</span>
+        <span class="detail-label">${t('length', currentLanguage)}</span>
+        <span class="detail-value">${lengthText}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Beam</span>
-        <span class="detail-value">${vessel.beam_m ? vessel.beam_m + ' m' : 'N/A'}</span>
+        <span class="detail-label">${t('beam', currentLanguage)}</span>
+        <span class="detail-value">${beamText}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Draught</span>
-        <span class="detail-value">${vessel.max_draught_m ? vessel.max_draught_m + ' m' : 'N/A'}</span>
+        <span class="detail-label">${t('draught', currentLanguage)}</span>
+        <span class="detail-value">${draughtText}</span>
       </div>
     </div>
 
     ${pos ? `
       <div class="detail-section">
-        <h3>Current Position</h3>
+        <h3>${t('currentPosition', currentLanguage)}</h3>
         <div class="detail-row">
-          <span class="detail-label">Latitude</span>
+          <span class="detail-label">${t('latitude', currentLanguage)}</span>
           <span class="detail-value">${pos.lat.toFixed(5)}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Longitude</span>
+          <span class="detail-label">${t('longitude', currentLanguage)}</span>
           <span class="detail-value">${pos.lon.toFixed(5)}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Speed</span>
-          <span class="detail-value">${pos.sog_knots?.toFixed(1) || 'N/A'} knots</span>
+          <span class="detail-label">${t('speed', currentLanguage)}</span>
+          <span class="detail-value">${speedText}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Course</span>
-          <span class="detail-value">${pos.cog_deg?.toFixed(0) || 'N/A'}°</span>
+          <span class="detail-label">${t('course', currentLanguage)}</span>
+          <span class="detail-value">${courseText}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Heading</span>
-          <span class="detail-value">${pos.heading_deg || 'N/A'}°</span>
+          <span class="detail-label">${t('heading', currentLanguage)}</span>
+          <span class="detail-value">${headingText}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Status</span>
-          <span class="detail-value">${pos.nav_status || 'N/A'}</span>
+          <span class="detail-label">${t('status', currentLanguage)}</span>
+          <span class="detail-value">${statusText}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Last Update</span>
-          <span class="detail-value">${new Date(pos.ts).toLocaleString()}</span>
+          <span class="detail-label">${t('lastUpdateLabel', currentLanguage)}</span>
+          <span class="detail-value">
+            ${formatRelativeTime(pos.ts)}
+            <br><small style="color: var(--text-muted); font-size: 0.85em;">${formatDateTime(pos.ts)}</small>
+          </span>
         </div>
       </div>
     ` : `
       <div class="detail-section">
-        <h3>Current Position</h3>
+        <h3>${t('currentPosition', currentLanguage)}</h3>
         <div class="detail-row">
-          <span class="detail-label">Last Message</span>
-          <span class="detail-value">${vessel.last_message_utc ? new Date(vessel.last_message_utc).toLocaleString() : 'No Data'}</span>
+          <span class="detail-label">${t('lastMessage', currentLanguage)}</span>
+          <span class="detail-value">
+            ${vessel.last_message_utc ? formatRelativeTime(vessel.last_message_utc) : t('noData', currentLanguage)}
+            ${vessel.last_message_utc ? `<br><small style="color: var(--text-muted); font-size: 0.85em;">${formatDateTime(vessel.last_message_utc)}</small>` : ''}
+          </span>
         </div>
       </div>
     `}
 
     <div class="detail-section">
-      <h3>Voyage</h3>
+      <h3>${t('voyage', currentLanguage)}</h3>
+      ${vessel.last_port ? `
       <div class="detail-row">
-        <span class="detail-label">Destination</span>
-        <span class="detail-value">${vessel.destination || pos?.destination || 'N/A'}</span>
+        <span class="detail-label">${t('lastPort', currentLanguage) || 'Last Port'}</span>
+        <span class="detail-value">
+          ${vessel.last_port}
+          ${vessel.last_port_arrival_utc ? `<br><small style="color: var(--text-muted); font-size: 0.85em;">${formatRelativeTime(vessel.last_port_arrival_utc)}</small>` : ''}
+        </span>
+      </div>
+      ` : ''}
+      <div class="detail-row">
+        <span class="detail-label">${t('destination', currentLanguage)}</span>
+        <span class="detail-value">${destinationText}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">ETA</span>
-        <span class="detail-value">${vessel.eta_utc ? new Date(vessel.eta_utc).toLocaleString() : 'N/A'}</span>
+        <span class="detail-label">${t('eta', currentLanguage)}</span>
+        <span class="detail-value">${etaText}</span>
       </div>
+      ${vessel.last_message_utc ? `
+      <div class="detail-row">
+        <span class="detail-label">${t('dataLastUpdated', currentLanguage) || 'Data updated'}</span>
+        <span class="detail-value" style="font-size: 0.9em; color: var(--text-muted);">
+          ${formatRelativeTime(vessel.last_message_utc)}
+        </span>
+      </div>
+      ` : ''}
     </div>
 
     ${vessel.notes ? `
     <div class="detail-section">
-      <h3>Notes</h3>
+      <h3>${t('notes', currentLanguage)}</h3>
       <div class="detail-row">
         <span class="detail-value" style="font-style: italic; color: #8090b0;">${vessel.notes}</span>
       </div>
@@ -498,29 +770,31 @@ function showVesselDetails(mmsi) {
   `;
 
   vesselDetailsEl.classList.remove('hidden');
-  renderVesselList(); // Update active state
+  renderVesselList();
 
-  // Fly to vessel on map
   if (pos) {
     map.flyTo({
       center: [pos.lon, pos.lat],
-      zoom: 10,
+      zoom: 8.5,
       duration: 2000
     });
   }
 }
 
+
 // Close details panel
+
 function closeDetails() {
   selectedVessel = null;
   vesselDetailsEl.classList.add('hidden');
+  resetDetailsPanel();
   renderVesselList();
 
-  // Update URL to root if we're closing from a vessel route
   if (currentRoute === 'vessel') {
     window.location.hash = '/';
   }
 }
+
 
 // Update stats
 function updateStats() {
@@ -543,11 +817,18 @@ function updateStats() {
 }
 
 // Update last update time
+
 function updateLastUpdate() {
-  lastUpdateEl.textContent = new Date().toLocaleTimeString();
+  lastUpdateEl.textContent = new Date().toLocaleTimeString(getLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: currentLanguage === 'en'
+  });
   lastDataUpdate = Date.now();
   checkStaleData();
 }
+
 
 // Check for stale data (> 5 minutes old)
 function checkStaleData() {
@@ -631,7 +912,7 @@ function setupEmbedAPI() {
           if (vessel && vessel.lastPosition) {
             map.flyTo({
               center: [vessel.lastPosition.lon, vessel.lastPosition.lat],
-              zoom: 12,
+              zoom: 9.5,
               duration: 2000
             });
           }
@@ -731,31 +1012,50 @@ function subscribeToUpdates() {
 }
 
 // Initialize
+
+
 async function init() {
   await fetchVessels();
   await fetchPositions();
   subscribeToUpdates();
 
-  // Set up event listeners
-  closeDetailsBtn.addEventListener('click', closeDetails);
-  vesselSearchEl.addEventListener('input', renderVesselList);
+  if (closeDetailsBtn) {
+    closeDetailsBtn.addEventListener('click', closeDetails);
+  }
+  if (vesselSearchEl) {
+    vesselSearchEl.addEventListener('input', renderVesselList);
+  }
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const nextTheme = currentTheme === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK;
+      applyTheme(nextTheme);
+    });
+  }
+  if (languageToggleBtn) {
+    languageToggleBtn.addEventListener('click', () => {
+      const nextLang = currentLanguage === 'en' ? 'ko' : 'en';
+      applyLanguage(nextLang);
+    });
+  }
 
-  // System info modal
-  systemInfoBtn.addEventListener('click', () => {
-    systemInfoModal.classList.remove('hidden');
-  });
-  closeInfoModalBtn.addEventListener('click', () => {
-    systemInfoModal.classList.add('hidden');
-  });
-  // Close modal on outside click
-  systemInfoModal.addEventListener('click', (e) => {
-    if (e.target === systemInfoModal) {
+  if (systemInfoBtn && systemInfoModal) {
+    systemInfoBtn.addEventListener('click', () => {
+      systemInfoModal.classList.remove('hidden');
+    });
+  }
+  if (closeInfoModalBtn && systemInfoModal) {
+    closeInfoModalBtn.addEventListener('click', () => {
       systemInfoModal.classList.add('hidden');
-    }
-  });
+    });
+  }
+  if (systemInfoModal) {
+    systemInfoModal.addEventListener('click', (e) => {
+      if (e.target === systemInfoModal) {
+        systemInfoModal.classList.add('hidden');
+      }
+    });
+  }
 
-  // Fleet filter tabs
-  // If filter tabs exist in DOM, wire them (optional). Otherwise default to my-fleet only.
   const tabs = document.querySelectorAll('.filter-tab');
   if (tabs && tabs.length) {
     tabs.forEach(tab => {
@@ -765,29 +1065,50 @@ async function init() {
         currentFilter = tab.dataset.filter;
         renderVesselList();
         updateStats();
-        updateAllMarkerVisibility(); // Update marker visibility on map
+        updateAllMarkerVisibility();
       });
     });
-    // Sync initial tab active state with currentFilter
     tabs.forEach(t => {
       if (t.dataset.filter === currentFilter) t.classList.add('active');
       else t.classList.remove('active');
     });
   }
 
-  // Refresh positions every 30 seconds
   setInterval(fetchPositions, 30000);
-
-  // Check for stale data every 30 seconds
   setInterval(checkStaleData, 30000);
 
-  // Set up routing
   window.addEventListener('hashchange', handleRoute);
-  handleRoute(); // Handle initial route
+  handleRoute();
 
-  // Set up embed API if in embed mode
   setupEmbedAPI();
 }
 
+
+
 // Wait for map to load
-map.on('load', init);
+
+map.on('load', () => {
+  if (!mapLoaded) {
+    mapLoaded = true;
+    init();
+  } else {
+    refreshMapAfterStyleChange();
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

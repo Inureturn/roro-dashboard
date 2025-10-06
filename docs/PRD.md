@@ -240,7 +240,7 @@ Alerts/notifications, advanced analytics, satellite AIS integration, or mobile o
 | Ingestion | Node / Python script on VPS | Persistent WebSocket, simple ops |
 | Database | Supabase (Postgres + Realtime) | Free, PostGIS, RLS |
 | Frontend | Vite SPA (Svelte) | Lightweight and fast |
-| Map | MapLibre GL + MapTiler / Stadia | Open source and stable |
+| Map | MapLibre GL + MapTiler | Open source and stable |
 | Hosting | Cloudflare Pages + VPS | Free + cheap combo |
 
 ---
