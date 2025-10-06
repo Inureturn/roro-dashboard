@@ -8,31 +8,57 @@ This folder contains temporary scripts used to prepopulate the dashboard for sta
 
 ## Files
 
+### `fetch-live-positions.js` ⭐ **RECOMMENDED**
+**Status:** Live position fetcher
+**Purpose:** Pulls **REAL current positions** from VesselFinder
+
+**Usage:**
+```bash
+node scripts/fetch-live-positions.js
+```
+
+**Output:** Generates `supabase/live-positions-[DATE].sql` with:
+- ✅ Real current lat/lon coordinates
+- ✅ Actual course and speed data
+- ✅ Navigation status and destination
+- ✅ Marked with `source='pulled'` for UI detection
+
+**UI Indicator:**
+- Dashboard **automatically shows** orange banner: "Demo data from [DATE]"
+- Banner disappears when using real AIS data
+- Clear visual distinction for stakeholders
+
+**Benefits:**
+- Real positions (not fake coords)
+- Auto-detected by UI
+- Professional demo presentation
+- Clear "this is demo data" indicator
+
+---
+
 ### `fetch-vessel-data.js`
-**Status:** Optional utility
-**Purpose:** Fetch vessel data from VesselFinder API
+**Status:** Legacy/Optional
+**Purpose:** Fetch vessel static data only (no positions)
 
 **Usage:**
 ```bash
 node scripts/fetch-vessel-data.js
 ```
 
-**Output:** Generates `supabase/prepopulate-fleet.sql`
-
-**Note:** This requires internet access and may fail if VesselFinder changes their API. The manually created SQL file (below) is more reliable.
+**Note:** Use `fetch-live-positions.js` instead for better results.
 
 ---
 
 ## SQL Files (Supabase Folder)
 
-### `supabase/prepopulate-fleet-TEMPORARY.sql` ⭐
-**Status:** Ready to use
-**Purpose:** Manually curated vessel data for demo
+### `supabase/prepopulate-fleet-TEMPORARY.sql`
+**Status:** Manual fallback
+**Purpose:** Manually curated vessel data with placeholder positions
 
 **What it does:**
 1. ✅ Inserts 5 fleet vessels into database
 2. ✅ Adds IMO, flag, dimensions, operator info
-3. ✅ Creates placeholder positions (20 hours old) so vessels appear on map
+3. ⚠️ Creates FAKE positions (20 hours old)
 4. ✅ Safe to run multiple times (uses ON CONFLICT)
 
 **How to use:**
@@ -44,7 +70,7 @@ node scripts/fetch-vessel-data.js
 **⚠️ CRITICAL WARNINGS:**
 - Positions are FAKE - 20 hours old, won't update
 - This is NOT real-time tracking
-- Explain to stakeholders: "This is demo data to show the interface"
+- **Use `fetch-live-positions.js` instead for real data**
 - DELETE this file after satellite view is ready
 
 ---
@@ -72,19 +98,22 @@ node scripts/fetch-vessel-data.js
 ## Timeline
 
 1. **Now (Demo Phase):**
-   - Run `prepopulate-fleet-TEMPORARY.sql`
-   - Show stakeholders populated dashboard
-   - Explain: "Real positions coming with satellite view"
+   - Run `node scripts/fetch-live-positions.js` ⭐ (gets real positions)
+   - Copy generated SQL to Supabase
+   - Dashboard automatically shows orange banner: "Demo data from [DATE]"
+   - Show stakeholders: "Real-time tracking coming with satellite view"
 
 2. **After Satellite View (3-4 hours):**
    - Real-time markers visible on map
-   - AIS data updates automatically
+   - AIS data updates automatically every 5-10 mins
+   - Orange banner disappears (no `source='pulled'` data)
    - **DELETE this entire scripts folder**
 
 3. **Production (Long-term):**
    - No manual data entry needed
    - Pure real-time AIS tracking
    - Professional, automated system
+   - Clean codebase
 
 ---
 
