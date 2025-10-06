@@ -709,6 +709,24 @@ body.light-theme .close-btn {
   background: var(--accent-light);
 }
 
+/* Vessel Markers */
+.vessel-marker {
+  position: relative !important;
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+  transform-origin: center center;
+  transition: transform 0.3s ease;
+}
+
+.vessel-marker:hover {
+  transform: scale(1.2);
+  z-index: 1001 !important;
+}
+
+.vessel-marker svg {
+  display: block;
+}
+
 /* Embed Mode */
 body.embed-mode {
   overflow: hidden;
@@ -742,6 +760,37 @@ body.embed-mode .map-attribution {
   padding: 2px 6px;
 }
 
+/* Mobile Menu Toggles */
+.mobile-menu-toggle {
+  display: none; /* Hidden by default, shown on mobile */
+  position: fixed;
+  top: 5.5rem;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 150;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: var(--accent-hover);
+  transform: scale(1.1);
+}
+
+.mobile-menu-toggle.left-toggle {
+  left: 1rem;
+}
+
+.mobile-menu-toggle.right-toggle {
+  right: 1rem;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .vessel-sidebar {
@@ -773,8 +822,13 @@ body.embed-mode .map-attribution {
     font-size: 0.85rem;
   }
 
+  /* Show mobile menu toggles */
+  .mobile-menu-toggle {
+    display: block;
+  }
+
   .vessel-sidebar {
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
     height: 100%;
@@ -782,8 +836,8 @@ body.embed-mode .map-attribution {
     max-width: 320px;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
-    z-index: 100;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    z-index: 200;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
   }
 
   .vessel-sidebar.open {
@@ -791,19 +845,25 @@ body.embed-mode .map-attribution {
   }
 
   .vessel-details {
-    position: absolute;
+    position: fixed;
     right: 0;
     top: 0;
     height: 100%;
-    width: 85%;
-    max-width: 320px;
+    width: 90%;
+    max-width: 380px;
     transform: translateX(100%);
     transition: transform 0.3s ease;
-    z-index: 100;
+    z-index: 200;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
   }
 
   .vessel-details:not(.hidden) {
     transform: translateX(0);
+  }
+
+  /* Hide right toggle when details panel is open */
+  .vessel-details:not(.hidden) ~ .right-toggle {
+    display: none;
   }
 
   /* Make buttons more touch-friendly */
@@ -828,6 +888,18 @@ body.embed-mode .map-attribution {
     min-width: 44px;
     min-height: 44px;
     font-size: 1.5rem;
+  }
+
+  /* Overlay when sidebar is open */
+  .vessel-sidebar.open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: -1;
   }
 }
 

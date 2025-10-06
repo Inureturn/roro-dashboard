@@ -523,22 +523,40 @@ function updateVesselMarker(mmsi, position, trail = []) {
   const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
   const heading = position.heading_deg ?? position.cog_deg ?? 0;
 
+  // Larger, more visible arrow marker
   el.innerHTML = `
-    <svg width="32" height="32" viewBox="0 0 32 32" style="transform: rotate(${heading}deg);">
-      <path d="M16 2 L26 28 L16 22 L6 28 Z"
+    <svg width="48" height="48" viewBox="0 0 48 48" style="transform: rotate(${heading}deg);">
+      <defs>
+        <filter id="shadow-${mmsi}" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+          <feOffset dx="0" dy="2" result="offsetblur"/>
+          <feFlood flood-color="#000000" flood-opacity="0.5"/>
+          <feComposite in2="offsetblur" operator="in"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <path d="M24 4 L38 40 L24 32 L10 40 Z"
             fill="${markerColor}"
-            stroke="#fff"
-            stroke-width="2"/>
+            stroke="#ffffff"
+            stroke-width="3"
+            filter="url(#shadow-${mmsi})"/>
     </svg>
   `;
   el.style.cssText = `
-    width: 32px;
-    height: 32px;
+    width: 48px;
+    height: 48px;
     cursor: pointer;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    position: relative;
+    z-index: 1000;
+    pointer-events: auto;
   `;
 
   el.title = vessel.name || `MMSI ${mmsi}`;
+
+  console.log(`[MARKER] Creating arrow for ${vessel.name} at ${position.lat}, ${position.lon} heading ${heading}°`);
 
   const destination = vessel.destination || position.destination || t('na', currentLanguage);
   const eta = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
@@ -687,6 +705,12 @@ function renderVesselList() {
     item.addEventListener('click', () => {
       const mmsi = item.dataset.mmsi;
       showVesselDetails(mmsi);
+
+      // Close sidebar on mobile after selection
+      const vesselSidebar = document.getElementById('vessel-sidebar');
+      if (vesselSidebar && window.innerWidth <= 768) {
+        vesselSidebar.classList.remove('open');
+      }
     });
   });
 }
@@ -1160,6 +1184,34 @@ async function init() {
     systemInfoModal.addEventListener('click', (e) => {
       if (e.target === systemInfoModal) {
         systemInfoModal.classList.add('hidden');
+      }
+    });
+  }
+
+  // Mobile menu toggles
+  const mobileLeftToggle = document.getElementById('mobile-left-toggle');
+  const mobileRightToggle = document.getElementById('mobile-right-toggle');
+  const vesselSidebar = document.getElementById('vessel-sidebar');
+
+  if (mobileLeftToggle && vesselSidebar) {
+    mobileLeftToggle.addEventListener('click', () => {
+      vesselSidebar.classList.toggle('open');
+    });
+
+    // Close sidebar when clicking outside
+    document.addEventListener('click', (e) => {
+      if (vesselSidebar.classList.contains('open') &&
+          !vesselSidebar.contains(e.target) &&
+          !mobileLeftToggle.contains(e.target)) {
+        vesselSidebar.classList.remove('open');
+      }
+    });
+  }
+
+  if (mobileRightToggle && vesselDetailsEl) {
+    mobileRightToggle.addEventListener('click', () => {
+      if (selectedVessel) {
+        showVesselDetails(selectedVessel);
       }
     });
   }
