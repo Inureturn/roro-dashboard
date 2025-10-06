@@ -78,6 +78,8 @@ let keepAliveTimer = null; // periodic ws ping
 let lastMessageTime = Date.now();
 let insertCountThisMinute = 0;
 let insertCountTimer = null;
+// Debug aid: track first PositionReport per MMSI
+const seenFirstPR = new Set();
 
 // Haversine distance in meters
 function haversineDistance(lat1, lon1, lat2, lon2) {
@@ -241,6 +243,11 @@ async function handleMessage(msg) {
       const pr = data.Message?.PositionReport;
       if (!pr) return;
 
+      if (LOG_LEVEL === 'debug' && !seenFirstPR.has(mmsi)) {
+        seenFirstPR.add(mmsi);
+        console.log(`[RX] First PositionReport for ${mmsi}`);
+      }
+
       await insertPosition({
         mmsi,
         lat: meta.latitude,
@@ -292,7 +299,14 @@ function subscribe() {
   if (mode === 'bbox') {
     subscription.BoundingBoxes = BBOX_JSON;
   } else if (mode === 'mmsi') {
-    subscription.FiltersShipMMSI = FLEET_MMSIS;
+    // Cast to numbers to match API expectations
+    const nums = FLEET_MMSIS.map(m => Number(m)).filter(n => Number.isFinite(n));
+    if (nums.length === 0) {
+      console.error('[INIT] No valid numeric MMSIs parsed from FLEET_MMSIS');
+      ws.close();
+      return;
+    }
+    subscription.FiltersShipMMSI = nums;
   }
 
   ws.send(JSON.stringify(subscription));
