@@ -665,6 +665,12 @@ async function init() {
     });
   });
 
+  // Sync initial tab active state with currentFilter
+  document.querySelectorAll('.filter-tab').forEach(t => {
+    if (t.dataset.filter === currentFilter) t.classList.add('active');
+    else t.classList.remove('active');
+  });
+
   // Refresh positions every 30 seconds
   setInterval(fetchPositions, 30000);
 
