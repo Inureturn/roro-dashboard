@@ -2,6 +2,10 @@ import './style.css';
 import maplibregl from 'maplibre-gl';
 import { createClient } from '@supabase/supabase-js';
 
+// Version for cache busting
+const APP_VERSION = '2.0.0';
+console.log(`[APP] RoRo Dashboard v${APP_VERSION}`);
+
 // Configuration from environment variables
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rbffmfuvqgxlthzvmtir.supabase.co';
@@ -100,55 +104,48 @@ async function fetchVessels() {
 
 // Fetch latest positions
 async function fetchPositions() {
-  console.log('[DEBUG] Fetching latest positions from vessel_latest view...');
+  console.log('[DEBUG] Fetching latest positions...');
 
-  // Fetch latest position per vessel from materialized view
-  const { data: latestData, error: latestError } = await supabase
-    .from('vessel_latest')
-    .select('*');
+  // Fetch ALL position data (we'll group by mmsi to get latest + trail)
+  const { data: allPositions, error } = await supabase
+    .from('vessel_positions')
+    .select('mmsi, ts, lat, lon, sog_knots, cog_deg, heading_deg, nav_status, destination')
+    .order('ts', { ascending: false })
+    .limit(2000); // Get enough for latest + trails
 
-  if (latestError) {
-    console.error('[ERROR] Error fetching latest positions:', latestError);
+  if (error) {
+    console.error('[ERROR] Error fetching positions:', error);
     return;
   }
 
-  console.log(`[DEBUG] Fetched ${latestData?.length || 0} latest positions`);
-
-  // Fetch recent trail data (last 50 positions per vessel)
-  const { data: trailData, error: trailError } = await supabase
-    .from('vessel_positions')
-    .select('mmsi, ts, lat, lon')
-    .order('ts', { ascending: false })
-    .limit(1000);
-
-  if (trailError) {
-    console.error('[ERROR] Error fetching trail data:', trailError);
-  }
-
-  // Group trail positions by vessel
-  const vesselTrails = new Map();
-  if (trailData) {
-    trailData.forEach(pos => {
-      if (!vesselTrails.has(pos.mmsi)) {
-        vesselTrails.set(pos.mmsi, []);
-      }
-      const trail = vesselTrails.get(pos.mmsi);
-      if (trail.length < 50) {
-        trail.push(pos);
-      }
-    });
-  }
-
-  // Update markers with latest positions
-  if (latestData && latestData.length > 0) {
-    latestData.forEach(pos => {
-      const trail = vesselTrails.get(pos.mmsi) || [];
-      updateVesselMarker(pos.mmsi, pos, trail);
-    });
-    updateLastUpdate();
-  } else {
+  if (!allPositions || allPositions.length === 0) {
     console.warn('[WARN] No position data available yet');
+    return;
   }
+
+  console.log(`[DEBUG] Fetched ${allPositions.length} positions from database`);
+
+  // Group by vessel - first position is latest, rest is trail
+  const vesselData = new Map(); // mmsi -> { latest, trail }
+  allPositions.forEach(pos => {
+    if (!vesselData.has(pos.mmsi)) {
+      vesselData.set(pos.mmsi, { latest: pos, trail: [] });
+    } else {
+      const data = vesselData.get(pos.mmsi);
+      if (data.trail.length < 50) {
+        data.trail.push(pos);
+      }
+    }
+  });
+
+  console.log(`[DEBUG] Found positions for ${vesselData.size} vessels`);
+
+  // Update markers
+  vesselData.forEach((data, mmsi) => {
+    updateVesselMarker(mmsi, data.latest, data.trail);
+  });
+
+  updateLastUpdate();
 }
 
 // Update vessel marker on map
