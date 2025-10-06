@@ -240,6 +240,37 @@ body {
   text-decoration: underline;
 }
 
+.stale-data-warning {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 152, 0, 0.95);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: slideDown 0.3s ease;
+}
+
+.stale-data-warning.hidden {
+  display: none;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* Vessel Details Panel */
 .vessel-details {
   width: 400px;
@@ -386,6 +417,39 @@ body {
 .vessel-list::-webkit-scrollbar-thumb:hover,
 .details-content::-webkit-scrollbar-thumb:hover {
   background: #3a4562;
+}
+
+/* Embed Mode */
+body.embed-mode {
+  overflow: hidden;
+}
+
+body.embed-mode .dashboard-header,
+body.embed-mode .vessel-sidebar,
+body.embed-mode .vessel-details {
+  display: none;
+}
+
+body.embed-mode .dashboard-main {
+  height: 100vh;
+}
+
+body.embed-mode .map-container {
+  width: 100%;
+  height: 100%;
+}
+
+body.embed-mode .stale-data-warning {
+  top: 8px;
+  font-size: 0.8rem;
+  padding: 8px 16px;
+}
+
+body.embed-mode .map-attribution {
+  font-size: 0.7rem;
+  bottom: 4px;
+  right: 4px;
+  padding: 2px 6px;
 }
 
 /* Responsive */

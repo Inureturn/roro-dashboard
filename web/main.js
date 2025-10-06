@@ -43,6 +43,8 @@ let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
 let currentFilter = 'all'; // 'all', 'my-fleet', 'competitors'
+let lastDataUpdate = null; // Track last AIS data update
+let currentRoute = null; // Current route for navigation
 
 // DOM Elements
 const vesselListEl = document.getElementById('vessel-list');
@@ -53,6 +55,7 @@ const vesselSearchEl = document.getElementById('vessel-search');
 const totalVesselsEl = document.getElementById('total-vessels');
 const activeVesselsEl = document.getElementById('active-vessels');
 const lastUpdateEl = document.getElementById('last-update');
+const staleDataWarningEl = document.getElementById('stale-data-warning');
 
 // Fetch initial vessel data
 async function fetchVessels() {
@@ -258,6 +261,11 @@ function showVesselDetails(mmsi) {
   const vessel = vessels.get(mmsi);
   if (!vessel) return;
 
+  // Update URL if not already set
+  if (currentRoute !== 'vessel' || window.location.hash !== `#/vessel/${mmsi}`) {
+    window.location.hash = `/vessel/${mmsi}`;
+  }
+
   const pos = vessel.lastPosition;
 
   detailsContentEl.innerHTML = `
@@ -366,6 +374,11 @@ function closeDetails() {
   selectedVessel = null;
   vesselDetailsEl.classList.add('hidden');
   renderVesselList();
+
+  // Update URL to root if we're closing from a vessel route
+  if (currentRoute === 'vessel') {
+    window.location.hash = '/';
+  }
 }
 
 // Update stats
@@ -390,6 +403,158 @@ function updateStats() {
 // Update last update time
 function updateLastUpdate() {
   lastUpdateEl.textContent = new Date().toLocaleTimeString();
+  lastDataUpdate = Date.now();
+  checkStaleData();
+}
+
+// Check for stale data (> 5 minutes old)
+function checkStaleData() {
+  if (!lastDataUpdate) return;
+
+  const timeSinceUpdate = Date.now() - lastDataUpdate;
+  const isStale = timeSinceUpdate > 5 * 60 * 1000; // 5 minutes
+
+  if (isStale) {
+    staleDataWarningEl.classList.remove('hidden');
+  } else {
+    staleDataWarningEl.classList.add('hidden');
+  }
+}
+
+// Routing: Parse hash and handle navigation
+function parseRoute() {
+  const hash = window.location.hash.slice(1) || '/'; // Remove '#' prefix
+  const parts = hash.split('/').filter(p => p);
+
+  if (parts.length === 0) {
+    return { route: 'dashboard', params: {} };
+  }
+
+  if (parts[0] === 'vessel' && parts[1]) {
+    return { route: 'vessel', params: { mmsi: parts[1] } };
+  }
+
+  if (parts[0] === 'embed' && parts[1] === 'v1') {
+    return { route: 'embed', params: {} };
+  }
+
+  return { route: 'dashboard', params: {} };
+}
+
+function handleRoute() {
+  const { route, params } = parseRoute();
+  currentRoute = route;
+
+  if (route === 'embed') {
+    // Switch to embed mode
+    document.body.classList.add('embed-mode');
+    return;
+  }
+
+  if (route === 'vessel' && params.mmsi) {
+    // Navigate to vessel detail
+    showVesselDetails(params.mmsi);
+  } else if (route === 'dashboard') {
+    // Show dashboard (default view)
+    closeDetails();
+  }
+}
+
+function navigateTo(path) {
+  window.location.hash = path;
+}
+
+// Embed widget postMessage API
+function setupEmbedAPI() {
+  if (currentRoute !== 'embed') return;
+
+  // Listen for messages from parent window
+  window.addEventListener('message', (event) => {
+    const { type, payload } = event.data;
+
+    switch (type) {
+      case 'EMBED_SET_FILTER':
+        // Set fleet filter (all, my-fleet, competitors)
+        if (['all', 'my-fleet', 'competitors'].includes(payload.filter)) {
+          currentFilter = payload.filter;
+          renderVesselList();
+          updateStats();
+        }
+        break;
+
+      case 'EMBED_FOCUS_VESSEL':
+        // Focus on specific vessel by MMSI
+        if (payload.mmsi) {
+          const vessel = vessels.get(payload.mmsi);
+          if (vessel && vessel.lastPosition) {
+            map.flyTo({
+              center: [vessel.lastPosition.lon, vessel.lastPosition.lat],
+              zoom: 12,
+              duration: 2000
+            });
+          }
+        }
+        break;
+
+      case 'EMBED_SET_BOUNDS':
+        // Set map bounds
+        if (payload.bounds && payload.bounds.length === 4) {
+          map.fitBounds([
+            [payload.bounds[0], payload.bounds[1]], // SW
+            [payload.bounds[2], payload.bounds[3]]  // NE
+          ]);
+        }
+        break;
+
+      case 'EMBED_GET_STATE':
+        // Send current state to parent
+        sendEmbedState();
+        break;
+    }
+  });
+
+  // Send ready message to parent
+  if (window.parent !== window) {
+    window.parent.postMessage({
+      type: 'EMBED_READY',
+      payload: {
+        version: 'v1',
+        vesselCount: vessels.size
+      }
+    }, '*');
+  }
+}
+
+function sendEmbedState() {
+  if (currentRoute !== 'embed' || window.parent === window) return;
+
+  const vesselArray = Array.from(vessels.values());
+  const activeCount = vesselArray.filter(v => {
+    const pos = v.lastPosition;
+    return pos && (Date.now() - new Date(pos.ts).getTime()) < 3600000;
+  }).length;
+
+  window.parent.postMessage({
+    type: 'EMBED_STATE',
+    payload: {
+      totalVessels: vessels.size,
+      activeVessels: activeCount,
+      filter: currentFilter,
+      lastUpdate: lastDataUpdate,
+      vessels: vesselArray.map(v => ({
+        mmsi: v.mmsi,
+        name: v.name,
+        isMyFleet: v.is_my_fleet,
+        lastPosition: v.lastPosition ? {
+          lat: v.lastPosition.lat,
+          lon: v.lastPosition.lon,
+          sog: v.lastPosition.sog_knots,
+          cog: v.lastPosition.cog_deg,
+          ts: v.lastPosition.ts
+        } : null
+      }))
+    }
+  }, '*');
 }
 
 // Subscribe to realtime updates
@@ -446,6 +611,16 @@ async function init() {
 
   // Refresh positions every 30 seconds
   setInterval(fetchPositions, 30000);
+
+  // Check for stale data every 30 seconds
+  setInterval(checkStaleData, 30000);
+
+  // Set up routing
+  window.addEventListener('hashchange', handleRoute);
+  handleRoute(); // Handle initial route
+
+  // Set up embed API if in embed mode
+  setupEmbedAPI();
 }
 
 // Wait for map to load

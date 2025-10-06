@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm install)",
-      "Bash(copy .env ingestor.env)"
+      "Bash(copy .env ingestor.env)",
+      "Bash(git push:*)",
+      "Read(//c/Users/Bilel/Downloads/**)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
