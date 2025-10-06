@@ -299,14 +299,14 @@ function subscribe() {
   if (mode === 'bbox') {
     subscription.BoundingBoxes = BBOX_JSON;
   } else if (mode === 'mmsi') {
-    // Cast to numbers to match API expectations
-    const nums = FLEET_MMSIS.map(m => Number(m)).filter(n => Number.isFinite(n));
-    if (nums.length === 0) {
-      console.error('[INIT] No valid numeric MMSIs parsed from FLEET_MMSIS');
+    // Send as strings to avoid any server-side type mismatches
+    const strs = FLEET_MMSIS.map(m => String(m).trim()).filter(s => /^(\d{7,9})$/.test(s));
+    if (strs.length === 0) {
+      console.error('[INIT] No valid MMSIs parsed from FLEET_MMSIS');
       ws.close();
       return;
     }
-    subscription.FiltersShipMMSI = nums;
+    subscription.FiltersShipMMSI = strs;
   }
 
   ws.send(JSON.stringify(subscription));
@@ -372,6 +372,19 @@ function connect() {
 
   ws.on('error', (err) => {
     console.error('[WS ERROR]', err && (err.stack || err.message || String(err)));
+  });
+
+  // Capture non-upgrade HTTP responses from the server during handshake
+  ws.on('unexpected-response', (_req, res) => {
+    try {
+      console.error('[WS UNEXPECTED RESPONSE]', res.statusCode, res.statusMessage);
+      const chunks = [];
+      res.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(String(c))));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        if (body) console.error('[WS RESPONSE BODY]', body.slice(0, 500));
+      });
+    } catch {}
   });
 
   ws.on('close', (code, reason) => {
