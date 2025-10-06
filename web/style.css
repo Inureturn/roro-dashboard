@@ -711,20 +711,30 @@ body.light-theme .close-btn {
 
 /* Vessel Markers */
 .vessel-marker {
-  position: relative !important;
-  z-index: 1000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   pointer-events: auto !important;
-  transform-origin: center center;
-  transition: transform 0.3s ease;
+  transform-origin: center center !important;
+  transition: transform 0.2s ease;
 }
 
 .vessel-marker:hover {
-  transform: scale(1.2);
-  z-index: 1001 !important;
+  transform: scale(1.15);
+  z-index: 10;
 }
 
 .vessel-marker svg {
   display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Override MapLibre default marker styles */
+.maplibregl-marker {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Embed Mode */

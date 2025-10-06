@@ -523,40 +523,31 @@ function updateVesselMarker(mmsi, position, trail = []) {
   const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
   const heading = position.heading_deg ?? position.cog_deg ?? 0;
 
-  // Larger, more visible arrow marker
+  // Create arrow marker with cleaner SVG (ship-style arrow)
   el.innerHTML = `
-    <svg width="48" height="48" viewBox="0 0 48 48" style="transform: rotate(${heading}deg);">
-      <defs>
-        <filter id="shadow-${mmsi}" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
-          <feOffset dx="0" dy="2" result="offsetblur"/>
-          <feFlood flood-color="#000000" flood-opacity="0.5"/>
-          <feComposite in2="offsetblur" operator="in"/>
-          <feMerge>
-            <feMergeNode/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
-      <path d="M24 4 L38 40 L24 32 L10 40 Z"
+    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="transform: rotate(${heading}deg); filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));">
+      <!-- Arrow pointing north by default, rotated by heading -->
+      <path d="M20 5 L30 35 L20 28 L10 35 Z"
             fill="${markerColor}"
             stroke="#ffffff"
-            stroke-width="3"
-            filter="url(#shadow-${mmsi})"/>
+            stroke-width="2.5"
+            stroke-linejoin="round"/>
     </svg>
   `;
+
   el.style.cssText = `
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    position: relative;
-    z-index: 1000;
     pointer-events: auto;
   `;
 
   el.title = vessel.name || `MMSI ${mmsi}`;
 
-  console.log(`[MARKER] Creating arrow for ${vessel.name} at ${position.lat}, ${position.lon} heading ${heading}°`);
+  console.log(`[MARKER] Creating arrow for ${vessel.name} at [${position.lat}, ${position.lon}] heading ${heading}°`);
 
   const destination = vessel.destination || position.destination || t('na', currentLanguage);
   const eta = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
@@ -586,7 +577,11 @@ function updateVesselMarker(mmsi, position, trail = []) {
     </div>
   `);
 
-  const marker = new maplibregl.Marker(el)
+  const marker = new maplibregl.Marker({
+    element: el,
+    anchor: 'center',  // Center the arrow on the position
+    rotationAlignment: 'map'  // Rotate with map
+  })
     .setLngLat([position.lon, position.lat])
     .setPopup(popup)
     .addTo(map);
