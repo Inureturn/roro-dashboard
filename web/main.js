@@ -42,7 +42,7 @@ const map = new maplibregl.Map({
 let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
-let currentFilter = 'my-fleet'; // default to my fleet per product intent
+let currentFilter = 'tracked'; // default to tracked (my fleet + competitors)
 let lastDataUpdate = null; // Track last AIS data update
 let currentRoute = null; // Current route for navigation
 
@@ -60,12 +60,13 @@ const systemInfoBtn = document.getElementById('system-info-btn');
 const systemInfoModal = document.getElementById('system-info-modal');
 const closeInfoModalBtn = document.getElementById('close-info-modal');
 
-// Fetch initial vessel data
+// Fetch initial vessel data (my fleet only)
 async function fetchVessels() {
   console.log('[DEBUG] Fetching vessels from Supabase...');
   const { data, error } = await supabase
     .from('vessels')
-    .select('*');
+    .select('*')
+    .or('is_my_fleet.eq.true,is_competitor.eq.true');
 
   if (error) {
     console.error('[ERROR] Error fetching vessels:', error);
@@ -186,7 +187,7 @@ function updateVesselMarker(mmsi, position, trail = []) {
       type: 'line',
       source: trailSourceId,
       paint: {
-        'line-color': vessel.is_my_fleet ? '#4a7fc9' : '#8090b0',
+        'line-color': vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0'),
         'line-width': 2,
         'line-opacity': 0.6
       }
@@ -196,10 +197,11 @@ function updateVesselMarker(mmsi, position, trail = []) {
   // Create marker element
   const el = document.createElement('div');
   el.className = 'vessel-marker';
+  const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
   el.style.cssText = `
     width: 20px;
     height: 20px;
-    background: ${vessel.is_my_fleet ? '#4a7fc9' : '#8090b0'};
+    background: ${markerColor};
     border: 2px solid #fff;
     border-radius: 50%;
     cursor: pointer;
@@ -239,9 +241,10 @@ function renderVesselList() {
   const vesselArray = Array.from(vessels.values());
 
   const filtered = vesselArray.filter(vessel => {
-    // Apply fleet filter
+    // Apply filter
     if (currentFilter === 'my-fleet' && !vessel.is_my_fleet) return false;
-    if (currentFilter === 'competitors' && vessel.is_my_fleet) return false;
+    if (currentFilter === 'competitors' && !vessel.is_competitor) return false;
+    if (currentFilter === 'tracked' && !(vessel.is_my_fleet || vessel.is_competitor)) return false;
 
     // Apply search filter
     const name = (vessel.name || '').toLowerCase();
@@ -428,7 +431,8 @@ function updateStats() {
   // Filter vessels based on current filter
   const filtered = Array.from(vessels.values()).filter(vessel => {
     if (currentFilter === 'my-fleet') return vessel.is_my_fleet;
-    if (currentFilter === 'competitors') return !vessel.is_my_fleet;
+    if (currentFilter === 'competitors') return vessel.is_competitor;
+    if (currentFilter === 'tracked') return vessel.is_my_fleet || vessel.is_competitor;
     return true; // 'all'
   });
 
@@ -655,21 +659,24 @@ async function init() {
   });
 
   // Fleet filter tabs
-  document.querySelectorAll('.filter-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      currentFilter = tab.dataset.filter;
-      renderVesselList();
-      updateStats();
+  // If filter tabs exist in DOM, wire them (optional). Otherwise default to my-fleet only.
+  const tabs = document.querySelectorAll('.filter-tab');
+  if (tabs && tabs.length) {
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.filter;
+        renderVesselList();
+        updateStats();
+      });
     });
-  });
-
-  // Sync initial tab active state with currentFilter
-  document.querySelectorAll('.filter-tab').forEach(t => {
-    if (t.dataset.filter === currentFilter) t.classList.add('active');
-    else t.classList.remove('active');
-  });
+    // Sync initial tab active state with currentFilter
+    tabs.forEach(t => {
+      if (t.dataset.filter === currentFilter) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+  }
 
   // Refresh positions every 30 seconds
   setInterval(fetchPositions, 30000);

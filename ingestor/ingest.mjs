@@ -24,6 +24,16 @@ const FLEET_MMSIS = (process.env.FLEET_MMSIS || '')
   .map(m => m.trim())
   .filter(Boolean);
 
+// Competitors: optional lists by MMSI and IMO
+const COMPETITOR_MMSIS = (process.env.COMPETITOR_MMSIS || '')
+  .split(',')
+  .map(m => m.trim())
+  .filter(Boolean);
+const COMPETITOR_IMOS = (process.env.COMPETITOR_IMOS || '')
+  .split(',')
+  .map(i => i.trim())
+  .filter(Boolean);
+
 // Parse BBOX list where each item is a JSON array string: "[[lon1,lat1],[lon2,lat2]]"; items separated by ';'
 const BBOX_JSON = (process.env.BBOX_JSON || '')
   .split(';')
@@ -110,6 +120,12 @@ let triedAltMMSIFormat = false;
 // Debug aid: track first PositionReport per MMSI
 const seenFirstPR = new Set();
 
+// Known competitor caches
+const knownCompetitorMMSI = new Set(COMPETITOR_MMSIS.map(String));
+const knownCompetitorIMO = new Set(COMPETITOR_IMOS.map(String));
+// Derived flags by MMSI (set when we learn via IMO or MMSI)
+const competitorFlagByMMSI = new Set(COMPETITOR_MMSIS.map(String));
+
 // Haversine distance in meters
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth radius in meters
@@ -163,6 +179,8 @@ function shouldEmitPosition(mmsi, lat, lon, ts) {
 async function upsertVessel(data) {
   const mmsi = String(data.mmsi);
   const isMyFleet = FLEET_MMSIS.includes(mmsi);
+  const imoStr = data.imo ? String(data.imo) : null;
+  const isCompetitor = knownCompetitorMMSI.has(mmsi) || (imoStr && knownCompetitorIMO.has(imoStr));
   const payload = {
     mmsi,
     updated_at: new Date().toISOString()
@@ -178,6 +196,11 @@ async function upsertVessel(data) {
   if (data.eta_utc) payload.eta_utc = data.eta_utc;
   if (data.last_message_utc) payload.last_message_utc = data.last_message_utc;
   payload.is_my_fleet = isMyFleet;
+  payload.is_competitor = isCompetitor;
+
+  if (isCompetitor) {
+    competitorFlagByMMSI.add(mmsi);
+  }
 
   const { error } = await supabase
     .from('vessels')
@@ -192,7 +215,11 @@ async function upsertVessel(data) {
 
 // Ensure vessel stub exists
 async function ensureVessel(mmsi, name = null) {
-  const payload = { mmsi, is_my_fleet: FLEET_MMSIS.includes(String(mmsi)) };
+  const payload = {
+    mmsi,
+    is_my_fleet: FLEET_MMSIS.includes(String(mmsi)),
+    is_competitor: competitorFlagByMMSI.has(String(mmsi))
+  };
   if (name) payload.name = name;
 
   const { error } = await supabase
@@ -206,7 +233,13 @@ async function ensureVessel(mmsi, name = null) {
 
 // Update vessel activity fields (e.g., last_message_utc, destination fallback)
 async function updateVesselActivity(mmsi, fields) {
-  const payload = { mmsi, ...fields, updated_at: new Date().toISOString(), is_my_fleet: FLEET_MMSIS.includes(String(mmsi)) };
+  const payload = {
+    mmsi,
+    ...fields,
+    updated_at: new Date().toISOString(),
+    is_my_fleet: FLEET_MMSIS.includes(String(mmsi)),
+    is_competitor: competitorFlagByMMSI.has(String(mmsi))
+  };
   const { error } = await supabase
     .from('vessels')
     .upsert(payload, { onConflict: 'mmsi' });
@@ -220,10 +253,12 @@ async function insertPosition(data) {
   const mmsi = String(data.mmsi);
   const { lat, lon, ts } = data;
 
-  // If we subscribed by bounding boxes, restrict DB inserts to our fleet unless explicitly allowed
-  if (getEffectiveMode() !== 'mmsi' && !ALLOW_NON_FLEET && FLEET_MMSIS.length && !FLEET_MMSIS.includes(mmsi)) {
+  // If we subscribed by bounding boxes, restrict DB inserts to our fleet OR competitors unless explicitly allowed
+  const isMyFleet = FLEET_MMSIS.includes(mmsi);
+  const isCompetitor = competitorFlagByMMSI.has(mmsi);
+  if (getEffectiveMode() !== 'mmsi' && !ALLOW_NON_FLEET && (FLEET_MMSIS.length || knownCompetitorMMSI.size) && !(isMyFleet || isCompetitor)) {
     if (LOG_LEVEL === 'debug') {
-      console.log(`[SKIP] Non-fleet MMSI ${mmsi} (STREAM_MODE=${STREAM_MODE})`);
+      console.log(`[SKIP] Non-fleet/non-competitor MMSI ${mmsi} (STREAM_MODE=${STREAM_MODE})`);
     }
     return;
   }
@@ -349,9 +384,11 @@ function subscribe() {
   if (mode === 'bbox') {
     subscription.BoundingBoxes = BBOX_JSON;
   } else if (mode === 'mmsi') {
-    const mmsisStr = FLEET_MMSIS.map(m => String(m).trim()).filter(s => /^(\d{7,9})$/.test(s));
+    const mmsisStr = Array.from(new Set([...FLEET_MMSIS, ...COMPETITOR_MMSIS]))
+      .map(m => String(m).trim())
+      .filter(s => /^(\d{7,9})$/.test(s));
     if (mmsisStr.length === 0) {
-      console.error('[INIT] No valid MMSIs parsed from FLEET_MMSIS');
+      console.error('[INIT] No valid MMSIs parsed from FLEET_MMSIS/COMPETITOR_MMSIS');
       ws.close();
       return;
     }
