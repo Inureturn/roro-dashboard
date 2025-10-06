@@ -86,30 +86,79 @@ async function fetchPositions() {
     return;
   }
 
-  // Get latest position for each vessel
+  // Group positions by vessel (keep last 50 for trails)
+  const vesselTrails = new Map();
   const latestPositions = new Map();
+
   data.forEach(pos => {
     if (!latestPositions.has(pos.mmsi)) {
       latestPositions.set(pos.mmsi, pos);
     }
+
+    if (!vesselTrails.has(pos.mmsi)) {
+      vesselTrails.set(pos.mmsi, []);
+    }
+
+    const trail = vesselTrails.get(pos.mmsi);
+    if (trail.length < 50) { // Keep last 50 positions
+      trail.push(pos);
+    }
   });
 
-  // Update markers
+  // Update markers and trails
   latestPositions.forEach((pos, mmsi) => {
-    updateVesselMarker(mmsi, pos);
+    const trail = vesselTrails.get(mmsi) || [];
+    updateVesselMarker(mmsi, pos, trail);
   });
 
   updateLastUpdate();
 }
 
 // Update vessel marker on map
-function updateVesselMarker(mmsi, position) {
+function updateVesselMarker(mmsi, position, trail = []) {
   const vessel = vessels.get(mmsi);
   if (!vessel) return;
 
   // Remove old marker if exists
   if (markers.has(mmsi)) {
-    markers.get(mmsi).remove();
+    markers.get(mmsi).marker.remove();
+  }
+
+  // Remove old trail line if exists
+  const trailSourceId = `trail-${mmsi}`;
+  const trailLayerId = `trail-line-${mmsi}`;
+  if (map.getLayer(trailLayerId)) {
+    map.removeLayer(trailLayerId);
+  }
+  if (map.getSource(trailSourceId)) {
+    map.removeSource(trailSourceId);
+  }
+
+  // Add trail line if we have positions
+  if (trail.length > 1) {
+    const coordinates = trail.map(pos => [pos.lon, pos.lat]).reverse();
+
+    map.addSource(trailSourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates
+        }
+      }
+    });
+
+    map.addLayer({
+      id: trailLayerId,
+      type: 'line',
+      source: trailSourceId,
+      paint: {
+        'line-color': vessel.is_my_fleet ? '#4a7fc9' : '#8090b0',
+        'line-width': 2,
+        'line-opacity': 0.6
+      }
+    });
   }
 
   // Create marker element
@@ -118,7 +167,7 @@ function updateVesselMarker(mmsi, position) {
   el.style.cssText = `
     width: 20px;
     height: 20px;
-    background: #4a7fc9;
+    background: ${vessel.is_my_fleet ? '#4a7fc9' : '#8090b0'};
     border: 2px solid #fff;
     border-radius: 50%;
     cursor: pointer;
@@ -146,7 +195,7 @@ function updateVesselMarker(mmsi, position) {
     showVesselDetails(mmsi);
   });
 
-  markers.set(mmsi, marker);
+  markers.set(mmsi, { marker, trail: trailLayerId });
 
   // Update vessel data with latest position
   vessels.set(mmsi, { ...vessel, lastPosition: position });
