@@ -87,8 +87,11 @@ const systemInfoModal = document.getElementById('system-info-modal');
 const closeInfoModalBtn = document.getElementById('close-info-modal');
 
 const themeToggleBtn = document.getElementById('theme-toggle');
+const themeToggleBtnMobile = document.getElementById('theme-toggle-mobile');
 const languageToggleBtn = document.getElementById('lang-toggle');
+const languageToggleBtnMobile = document.getElementById('lang-toggle-mobile');
 const backdropEl = document.getElementById('backdrop');
+const systemInfoBtnMobile = document.getElementById('system-info-btn-mobile');
 
 
 function getInitialLanguage() {
@@ -1391,8 +1394,20 @@ async function init() {
       applyTheme(nextTheme);
     });
   }
+  if (themeToggleBtnMobile) {
+    themeToggleBtnMobile.addEventListener('click', () => {
+      const nextTheme = currentTheme === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK;
+      applyTheme(nextTheme);
+    });
+  }
   if (languageToggleBtn) {
     languageToggleBtn.addEventListener('click', () => {
+      const nextLang = currentLanguage === 'en' ? 'ko' : 'en';
+      applyLanguage(nextLang);
+    });
+  }
+  if (languageToggleBtnMobile) {
+    languageToggleBtnMobile.addEventListener('click', () => {
       const nextLang = currentLanguage === 'en' ? 'ko' : 'en';
       applyLanguage(nextLang);
     });
@@ -1403,15 +1418,25 @@ async function init() {
       systemInfoModal.classList.remove('hidden');
     });
   }
+  if (systemInfoBtnMobile && systemInfoModal) {
+    systemInfoBtnMobile.addEventListener('click', () => {
+      systemInfoModal.classList.remove('hidden');
+    });
+  }
   if (closeInfoModalBtn && systemInfoModal) {
     closeInfoModalBtn.addEventListener('click', () => {
       systemInfoModal.classList.add('hidden');
+      // Make sure the map backdrop is hidden if it was shown
+      backdropEl?.classList.remove('show');
+      backdropEl?.classList.add('hidden');
     });
   }
   if (systemInfoModal) {
     systemInfoModal.addEventListener('click', (e) => {
       if (e.target === systemInfoModal) {
         systemInfoModal.classList.add('hidden');
+        backdropEl?.classList.remove('show');
+        backdropEl?.classList.add('hidden');
       }
     });
   }
@@ -1449,9 +1474,13 @@ async function init() {
 
   if (mobileRightToggle && vesselDetailsEl) {
     mobileRightToggle.addEventListener('click', () => {
-      if (selectedVessel) {
-        showVesselDetails(selectedVessel);
+      // Toggle System Info modal instead of details when on mobile
+      if (systemInfoModal) {
+        systemInfoModal.classList.remove('hidden');
+        return;
       }
+      // Fallback: open details if modal isn't present
+      if (selectedVessel) showVesselDetails(selectedVessel);
       backdropEl?.classList.add('show');
       backdropEl?.classList.remove('hidden');
     });
