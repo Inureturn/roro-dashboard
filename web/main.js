@@ -100,51 +100,55 @@ async function fetchVessels() {
 
 // Fetch latest positions
 async function fetchPositions() {
-  console.log('[DEBUG] Fetching positions from Supabase...');
-  const { data, error } = await supabase
+  console.log('[DEBUG] Fetching latest positions from vessel_latest view...');
+
+  // Fetch latest position per vessel from materialized view
+  const { data: latestData, error: latestError } = await supabase
+    .from('vessel_latest')
+    .select('*');
+
+  if (latestError) {
+    console.error('[ERROR] Error fetching latest positions:', latestError);
+    return;
+  }
+
+  console.log(`[DEBUG] Fetched ${latestData?.length || 0} latest positions`);
+
+  // Fetch recent trail data (last 50 positions per vessel)
+  const { data: trailData, error: trailError } = await supabase
     .from('vessel_positions')
-    .select('*')
+    .select('mmsi, ts, lat, lon')
     .order('ts', { ascending: false })
     .limit(1000);
 
-  if (error) {
-    console.error('[ERROR] Error fetching positions:', error);
-    return;
+  if (trailError) {
+    console.error('[ERROR] Error fetching trail data:', trailError);
   }
 
-  console.log(`[DEBUG] Fetched ${data?.length || 0} positions from database`);
-
-  if (!data || data.length === 0) {
-    console.warn('[WARN] No position data available yet');
-    return;
-  }
-
-  // Group positions by vessel (keep last 50 for trails)
+  // Group trail positions by vessel
   const vesselTrails = new Map();
-  const latestPositions = new Map();
+  if (trailData) {
+    trailData.forEach(pos => {
+      if (!vesselTrails.has(pos.mmsi)) {
+        vesselTrails.set(pos.mmsi, []);
+      }
+      const trail = vesselTrails.get(pos.mmsi);
+      if (trail.length < 50) {
+        trail.push(pos);
+      }
+    });
+  }
 
-  data.forEach(pos => {
-    if (!latestPositions.has(pos.mmsi)) {
-      latestPositions.set(pos.mmsi, pos);
-    }
-
-    if (!vesselTrails.has(pos.mmsi)) {
-      vesselTrails.set(pos.mmsi, []);
-    }
-
-    const trail = vesselTrails.get(pos.mmsi);
-    if (trail.length < 50) { // Keep last 50 positions
-      trail.push(pos);
-    }
-  });
-
-  // Update markers and trails
-  latestPositions.forEach((pos, mmsi) => {
-    const trail = vesselTrails.get(mmsi) || [];
-    updateVesselMarker(mmsi, pos, trail);
-  });
-
-  updateLastUpdate();
+  // Update markers with latest positions
+  if (latestData && latestData.length > 0) {
+    latestData.forEach(pos => {
+      const trail = vesselTrails.get(pos.mmsi) || [];
+      updateVesselMarker(pos.mmsi, pos, trail);
+    });
+    updateLastUpdate();
+  } else {
+    console.warn('[WARN] No position data available yet');
+  }
 }
 
 // Update vessel marker on map
@@ -208,14 +212,25 @@ function updateVesselMarker(mmsi, position, trail = []) {
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   `;
 
-  // Create popup
+  // Create popup with enhanced info
+  const destination = vessel.destination || position.destination || 'N/A';
+  const eta = vessel.eta_utc ? new Date(vessel.eta_utc).toLocaleString() : 'N/A';
+  const navStatus = position.nav_status || 'N/A';
+
   const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
     <div class="popup-vessel-name">${vessel.name || mmsi}</div>
     <div class="popup-details">
-      <div>MMSI: ${mmsi}</div>
-      <div>Speed: ${position.sog_knots?.toFixed(1) || 'N/A'} knots</div>
-      <div>Course: ${position.cog_deg?.toFixed(0) || 'N/A'}°</div>
-      <div>${new Date(position.ts).toLocaleString()}</div>
+      <div><strong>MMSI:</strong> ${mmsi}</div>
+      ${vessel.imo ? `<div><strong>IMO:</strong> ${vessel.imo}</div>` : ''}
+      <div><strong>Speed:</strong> ${position.sog_knots?.toFixed(1) || 'N/A'} kn</div>
+      <div><strong>Course:</strong> ${position.cog_deg?.toFixed(0) || 'N/A'}°</div>
+      ${position.heading_deg ? `<div><strong>Heading:</strong> ${position.heading_deg}°</div>` : ''}
+      <div><strong>Status:</strong> ${navStatus}</div>
+      <div><strong>Destination:</strong> ${destination}</div>
+      ${vessel.eta_utc ? `<div><strong>ETA:</strong> ${eta}</div>` : ''}
+      <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #8090b0;">
+        ${new Date(position.ts).toLocaleString()}
+      </div>
     </div>
   `);
 
@@ -263,17 +278,34 @@ function renderVesselList() {
     const isActive = lastTs && (Date.now() - new Date(lastTs).getTime()) < 3600000; // Active if < 1 hour
     const statusClass = !lastPos ? 'offline' : isActive ? '' : 'stale';
 
+    // Format destination (truncate if too long)
+    const destination = (vessel.destination || lastPos?.destination || '').slice(0, 20);
+    const destDisplay = destination ? `→ ${destination}` : '';
+
+    // Calculate ETA countdown
+    let etaDisplay = '';
+    if (vessel.eta_utc) {
+      const etaTime = new Date(vessel.eta_utc).getTime();
+      const now = Date.now();
+      const hoursUntil = Math.round((etaTime - now) / (1000 * 60 * 60));
+      if (hoursUntil > 0 && hoursUntil < 168) { // Show if within 1 week
+        etaDisplay = hoursUntil < 24 ? `ETA ${hoursUntil}h` : `ETA ${Math.round(hoursUntil/24)}d`;
+      }
+    }
+
     return `
       <div class="vessel-item ${selectedVessel === vessel.mmsi ? 'active' : ''}"
            data-mmsi="${vessel.mmsi}">
         <div class="vessel-name">${vessel.name || 'Unknown Vessel'}</div>
         <div class="vessel-mmsi">MMSI: ${vessel.mmsi}</div>
+        ${destDisplay ? `<div class="vessel-destination" style="font-size: 0.75rem; color: #8090b0; margin-top: 0.25rem;">${destDisplay}</div>` : ''}
         <div class="vessel-status">
           <span class="status-indicator">
             <span class="status-dot ${statusClass}"></span>
             ${!lastTs ? 'No Data' : isActive ? 'Active' : 'Last seen > 1h'}
           </span>
           ${lastPos ? `<span>${lastPos.sog_knots?.toFixed(1) || '0.0'} kn</span>` : ''}
+          ${etaDisplay ? `<span style="color: #4caf50; font-size: 0.7rem;">${etaDisplay}</span>` : ''}
         </div>
       </div>
     `;
@@ -324,6 +356,24 @@ function showVesselDetails(mmsi) {
         <span class="detail-label">Type</span>
         <span class="detail-value">${vessel.type || 'N/A'}</span>
       </div>
+      ${vessel.flag ? `
+      <div class="detail-row">
+        <span class="detail-label">Flag</span>
+        <span class="detail-value">${vessel.flag}</span>
+      </div>
+      ` : ''}
+      ${vessel.operator ? `
+      <div class="detail-row">
+        <span class="detail-label">Operator</span>
+        <span class="detail-value">${vessel.operator}</span>
+      </div>
+      ` : ''}
+      ${vessel.operator_group ? `
+      <div class="detail-row">
+        <span class="detail-label">Operator Group</span>
+        <span class="detail-value">${vessel.operator_group}</span>
+      </div>
+      ` : ''}
     </div>
 
     <div class="detail-section">
@@ -394,11 +444,16 @@ function showVesselDetails(mmsi) {
         <span class="detail-label">ETA</span>
         <span class="detail-value">${vessel.eta_utc ? new Date(vessel.eta_utc).toLocaleString() : 'N/A'}</span>
       </div>
+    </div>
+
+    ${vessel.notes ? `
+    <div class="detail-section">
+      <h3>Notes</h3>
       <div class="detail-row">
-        <span class="detail-label">Operator</span>
-        <span class="detail-value">${vessel.operator || 'N/A'}</span>
+        <span class="detail-value" style="font-style: italic; color: #8090b0;">${vessel.notes}</span>
       </div>
     </div>
+    ` : ''}
   `;
 
   vesselDetailsEl.classList.remove('hidden');

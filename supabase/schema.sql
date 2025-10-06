@@ -25,7 +25,10 @@ create table if not exists public.vessels (
   notes             text,
   updated_at        timestamptz default now(),
   operator_group    text,                              -- e.g., 'Shin Group', 'CLdN Cobelfret'
-  is_my_fleet       boolean default false              -- quick filter for UI
+  is_my_fleet       boolean default false,             -- quick filter for UI
+  is_competitor     boolean default false,             -- track competitor vessels
+  eta_utc           timestamptz,                       -- estimated time of arrival from AIS
+  last_message_utc  timestamptz                        -- last AIS message received
 );
 
 -- POSITIONS: append-only live/history track
