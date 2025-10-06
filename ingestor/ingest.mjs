@@ -392,12 +392,14 @@ function subscribe() {
 
   const subscription = {
     APIKey: AISSTREAM_KEY,
+    BoundingBoxes: [[[-90, -180], [90, 180]]], // Required! Global coverage
     FilterMessageTypes: SUB_TYPES_ENV === 'pos' ? ['PositionReport'] : ['PositionReport', 'ShipStaticData']
   };
 
   if (mode === 'bbox') {
     subscription.BoundingBoxes = BBOX_JSON;
   } else if (mode === 'mmsi') {
+    // MMSI filtering - AISStream requires strings, not numbers
     const mmsisStr = Array.from(new Set([...FLEET_MMSIS, ...COMPETITOR_MMSIS]))
       .map(m => String(m).trim())
       .filter(s => /^(\d{7,9})$/.test(s));
@@ -406,12 +408,8 @@ function subscribe() {
       ws.close();
       return;
     }
-    if (currentMMSIFormat === 'numbers') {
-      const nums = mmsisStr.map(s => Number(s)).filter(n => Number.isFinite(n));
-      subscription.FiltersShipMMSI = nums;
-    } else {
-      subscription.FiltersShipMMSI = mmsisStr;
-    }
+    // Always use strings per AISStream documentation
+    subscription.FiltersShipMMSI = mmsisStr;
   }
 
   lastSubscribeAt = Date.now();
