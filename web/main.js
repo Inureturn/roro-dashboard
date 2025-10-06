@@ -522,22 +522,39 @@ function updateVesselMarker(mmsi, position, trail = []) {
 
   const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
   const heading = position.heading_deg ?? position.cog_deg ?? 0;
+  const speed = position.sog_knots ?? 0;
 
-  // Create arrow marker with cleaner SVG (ship-style arrow)
-  el.innerHTML = `
-    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="transform: rotate(${heading}deg); filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));">
-      <!-- Arrow pointing north by default, rotated by heading -->
-      <path d="M20 5 L30 35 L20 28 L10 35 Z"
-            fill="${markerColor}"
-            stroke="#ffffff"
-            stroke-width="2.5"
-            stroke-linejoin="round"/>
-    </svg>
-  `;
+  // Determine if vessel is moving (speed > 0.5 knots)
+  const isMoving = speed > 0.5;
+
+  // Create arrow for moving vessels, dot for stationary/anchored
+  if (isMoving) {
+    // Moving vessel - show arrow with heading
+    el.innerHTML = `
+      <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="transform: rotate(${heading}deg); filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));">
+        <!-- Arrow pointing north by default, rotated by heading -->
+        <path d="M20 5 L30 35 L20 28 L10 35 Z"
+              fill="${markerColor}"
+              stroke="#ffffff"
+              stroke-width="2.5"
+              stroke-linejoin="round"/>
+      </svg>
+    `;
+  } else {
+    // Stationary vessel - show circular dot
+    el.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
+        <circle cx="12" cy="12" r="8"
+                fill="${markerColor}"
+                stroke="#ffffff"
+                stroke-width="2.5"/>
+      </svg>
+    `;
+  }
 
   el.style.cssText = `
-    width: 40px;
-    height: 40px;
+    width: ${isMoving ? '40px' : '24px'};
+    height: ${isMoving ? '40px' : '24px'};
     display: flex;
     align-items: center;
     justify-content: center;
@@ -547,7 +564,7 @@ function updateVesselMarker(mmsi, position, trail = []) {
 
   el.title = vessel.name || `MMSI ${mmsi}`;
 
-  console.log(`[MARKER] Creating arrow for ${vessel.name} at [${position.lat}, ${position.lon}] heading ${heading}°`);
+  console.log(`[MARKER] ${isMoving ? 'Arrow' : 'Dot'} for ${vessel.name} at [${position.lat}, ${position.lon}] ${isMoving ? `heading ${heading}°` : 'stationary'} (${speed.toFixed(1)} kn)`);
 
   const destination = vessel.destination || position.destination || t('na', currentLanguage);
   const eta = vessel.eta_utc ? formatDateTime(vessel.eta_utc) : t('na', currentLanguage);
@@ -580,7 +597,8 @@ function updateVesselMarker(mmsi, position, trail = []) {
   const marker = new maplibregl.Marker({
     element: el,
     anchor: 'center',  // Center the arrow on the position
-    rotationAlignment: 'map'  // Rotate with map
+    rotationAlignment: 'viewport',  // Keep marker upright relative to screen (fixes warping)
+    pitchAlignment: 'viewport'  // Keep marker flat on screen
   })
     .setLngLat([position.lon, position.lat])
     .setPopup(popup)
