@@ -9,8 +9,7 @@
     "preview": "vite preview"
   },
   "engines": {
-    "node": ">=18 <=24",
-    "pnpm": ">=8"
+    "node": ">=18 <=24"
   },
   "packageManager": "pnpm@10.18.0",
   "keywords": [],
