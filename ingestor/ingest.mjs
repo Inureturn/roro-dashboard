@@ -15,6 +15,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 const AISSTREAM_KEY = process.env.AISSTREAM_KEY;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+// Subscription fine-tuning
+const MMSI_FORMAT_ENV = (process.env.MMSI_FORMAT || 'numbers').toLowerCase(); // 'numbers' | 'strings'
+const SUB_TYPES_ENV = (process.env.SUB_TYPES || 'pos+static').toLowerCase(); // 'pos' | 'pos+static'
 // Allow empty/optional values safely
 const FLEET_MMSIS = (process.env.FLEET_MMSIS || '')
   .split(',')
@@ -78,6 +81,9 @@ let keepAliveTimer = null; // periodic ws ping
 let lastMessageTime = Date.now();
 let insertCountThisMinute = 0;
 let insertCountTimer = null;
+let lastSubscribeAt = 0;
+let currentMMSIFormat = MMSI_FORMAT_ENV; // may flip on quick 1006
+let triedAltMMSIFormat = false;
 // Debug aid: track first PositionReport per MMSI
 const seenFirstPR = new Set();
 
@@ -293,27 +299,34 @@ function subscribe() {
 
   const subscription = {
     APIKey: AISSTREAM_KEY,
-    FilterMessageTypes: ['PositionReport', 'ShipStaticData']
+    FilterMessageTypes: SUB_TYPES_ENV === 'pos' ? ['PositionReport'] : ['PositionReport', 'ShipStaticData']
   };
 
   if (mode === 'bbox') {
     subscription.BoundingBoxes = BBOX_JSON;
   } else if (mode === 'mmsi') {
-    // Send as strings to avoid any server-side type mismatches
-    const strs = FLEET_MMSIS.map(m => String(m).trim()).filter(s => /^(\d{7,9})$/.test(s));
-    if (strs.length === 0) {
+    const mmsisStr = FLEET_MMSIS.map(m => String(m).trim()).filter(s => /^(\d{7,9})$/.test(s));
+    if (mmsisStr.length === 0) {
       console.error('[INIT] No valid MMSIs parsed from FLEET_MMSIS');
       ws.close();
       return;
     }
-    subscription.FiltersShipMMSI = strs;
+    if (currentMMSIFormat === 'numbers') {
+      const nums = mmsisStr.map(s => Number(s)).filter(n => Number.isFinite(n));
+      subscription.FiltersShipMMSI = nums;
+    } else {
+      subscription.FiltersShipMMSI = mmsisStr;
+    }
   }
 
+  lastSubscribeAt = Date.now();
   ws.send(JSON.stringify(subscription));
   console.log('[WS] Subscription sent', {
     mode,
     bboxes: BBOX_JSON.length,
-    mmsis: FLEET_MMSIS.length
+    mmsis: FLEET_MMSIS.length,
+    types: subscription.FilterMessageTypes,
+    mmsiFormat: mode === 'mmsi' ? currentMMSIFormat : undefined
   });
 }
 
@@ -398,6 +411,13 @@ function connect() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (keepAliveTimer) clearInterval(keepAliveTimer);
 
+    // If MMSI mode closes very quickly with 1006, try alternate MMSI format once
+    if (getEffectiveMode() === 'mmsi' && code === 1006 && Date.now() - lastSubscribeAt < 5000 && !triedAltMMSIFormat) {
+      triedAltMMSIFormat = true;
+      currentMMSIFormat = currentMMSIFormat === 'numbers' ? 'strings' : 'numbers';
+      console.warn(`[WS] Quick close in mmsi mode — retrying with MMSI_FORMAT=${currentMMSIFormat}`);
+    }
+
     // Reconnect with exponential backoff
     console.log(`[WS] Reconnecting in ${reconnectDelay}ms...`);
     reconnectTimer = setTimeout(() => {
@@ -442,6 +462,7 @@ console.log(`[INIT] Bounding boxes: ${BBOX_JSON.length}`);
 console.log(`[INIT] Log level: ${LOG_LEVEL}`);
 console.log(`[INIT] Rate limits: ${MIN_DISTANCE_METERS}m / ${MIN_TIME_SECONDS}s`);
 console.log(`[INIT] Mode: ${getEffectiveMode()} (STREAM_MODE=${STREAM_MODE})`);
+console.log(`[INIT] MMSI_FORMAT: ${MMSI_FORMAT_ENV}, SUB_TYPES: ${SUB_TYPES_ENV}`);
 
 if (getEffectiveMode() === 'error') {
   console.error('[INIT] Missing filters. Set BBOX_JSON (preferred) or FLEET_MMSIS.');
