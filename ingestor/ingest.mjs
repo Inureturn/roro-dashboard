@@ -348,7 +348,7 @@ async function handleMessage(msg) {
         mmsi,
         lat: meta.latitude,
         lon: meta.longitude,
-        ts: meta.time_utc,
+        ts: parseTimestamp(meta.time_utc),
         name: meta.ShipName,
         sog_knots: pr.Sog,
         cog_deg: pr.Cog,
