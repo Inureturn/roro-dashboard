@@ -60,13 +60,13 @@ const systemInfoBtn = document.getElementById('system-info-btn');
 const systemInfoModal = document.getElementById('system-info-modal');
 const closeInfoModalBtn = document.getElementById('close-info-modal');
 
-// Fetch initial vessel data (my fleet only)
+// Fetch initial vessel data (my fleet + competitors)
 async function fetchVessels() {
   console.log('[DEBUG] Fetching vessels from Supabase...');
   const { data, error } = await supabase
     .from('vessels')
     .select('*')
-    .eq('is_my_fleet', true);
+    .or('is_my_fleet.eq.true,is_competitor.eq.true');
 
   if (error) {
     console.error('[ERROR] Error fetching vessels:', error);
