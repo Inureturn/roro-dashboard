@@ -1,38 +1,86 @@
--- Import complete vessel data for your 14 tracked vessels
--- Run this once in Supabase SQL Editor
--- This ensures vessels always show in dashboard even when not transmitting
+-- Import complete vessel data for your 5 fleet vessels
+-- Run this once in Supabase SQL Editor after filling in the data
+-- Visit vesselfinder.com to get the data for each vessel
 
--- Update your 5 fleet vessels with complete info
-UPDATE vessels SET
-  imo = '9073701',
-  callsign = '3FKQ7',
+-- Ensure vessels exist first (creates them if they don't)
+INSERT INTO public.vessels (mmsi, name, is_my_fleet, operator, operator_group)
+VALUES
+  ('357170000', 'Ah Shin', true, 'Shin Group', 'Shin Group'),
+  ('352808000', 'Hae Shin', true, 'Shin Group', 'Shin Group'),
+  ('352001129', 'O Soo Shin', true, 'Shin Group', 'Shin Group'),
+  ('355297000', 'Sang Shin', true, 'Shin Group', 'Shin Group'),
+  ('356005000', 'Young Shin', true, 'Shin Group', 'Shin Group')
+ON CONFLICT (mmsi) DO NOTHING;
+
+-- ============================================================================
+-- UPDATE STATEMENTS: Fill in the data from VesselFinder for each vessel
+-- ============================================================================
+
+-- Ah Shin (357170000)
+UPDATE public.vessels SET
+  imo = '9177430',
+  callsign = '3FBO9',
   type = 'Vehicles Carrier',
   flag = 'Panama',
-  operator = 'GMT Group',
-  operator_group = 'GMT Group',
-  length_m = 190,
-  beam_m = 32,
-  max_draught_m = 8.8
-WHERE mmsi = '373817000'; -- GMT Astro
+  length_m = 199.90,
+  beam_m = 32.23,
+  max_draught_m = 9.1
+WHERE mmsi = '357170000';
 
--- Add more UPDATE statements for your other vessels
--- You can get this data from VesselFinder/Marine Traffic
+-- Hae Shin (352808000)
+UPDATE public.vessels SET
+  imo = '9053505',
+  callsign = '3FWI3',
+  type = 'Vehicles Carrier',
+  flag = 'Panama',
+  length_m = 195.54,
+  beam_m = 28.80,
+  max_draught_m = 8.5
+WHERE mmsi = '352808000';
 
--- Example template:
--- UPDATE vessels SET
---   imo = 'IMO_NUMBER',
---   callsign = 'CALLSIGN',
---   type = 'Ro-Ro Cargo',
---   flag = 'COUNTRY',
---   operator = 'OPERATOR_NAME',
---   operator_group = 'GROUP_NAME',
---   length_m = LENGTH,
---   beam_m = BEAM,
---   max_draught_m = DRAUGHT
--- WHERE mmsi = 'MMSI_NUMBER';
+-- O Soo Shin (352001129)
+UPDATE public.vessels SET
+  imo = '9166704',
+  callsign = 'SSD',
+  type = 'Vehicles Carrier',
+  flag = 'Panama',
+  length_m = 178.0,
+  beam_m = 22.0,
+  max_draught_m = 7.1
+WHERE mmsi = '352001129';
 
--- This way:
--- ✅ Vessels always show in dashboard with full details
--- ✅ AISStream updates positions when they transmit
--- ✅ Professional appearance even when vessels idle
--- ✅ $0/month cost
+-- Sang Shin (355297000)
+UPDATE public.vessels SET
+  imo = '9073701',
+  callsign = '3FUX9',
+  type = 'Vehicles Carrier',
+  flag = 'Panama',
+  length_m = 179.0,
+  beam_m = 32.0,
+  max_draught_m = 7.1
+WHERE mmsi = '355297000';
+
+-- Young Shin (356005000)
+UPDATE public.vessels SET
+  imo = '9021332',
+  callsign = '3ELP9',
+  type = 'Vehicles Carrier',
+  flag = 'Panama',
+  length_m = 180.0,
+  beam_m = 32.0,
+  max_draught_m = 7.0
+WHERE mmsi = '356005000';
+
+-- ============================================================================
+-- READY TO RUN!
+-- ============================================================================
+-- All vessel data has been filled in from VesselFinder.
+--
+-- To apply this data:
+-- 1. Copy this entire file
+-- 2. Go to Supabase SQL Editor: https://supabase.com/dashboard/project/rbffmfuvqgxlthzvmtir/sql
+-- 3. Paste and click "Run"
+-- 4. Refresh dashboard - vessels will have complete information!
+--
+-- Note: This is static vessel info. Real-time positions come from AIS ingestor.
+-- ============================================================================

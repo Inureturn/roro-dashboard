@@ -21,6 +21,7 @@
         <h1 data-i18n="title">🚢 RoRo Fleet Dashboard</h1>
         <div class="header-stats">
           <span class="stat"><span class="stat-label" data-i18n="totalVessels">Total Vessels:</span> <span id="total-vessels">0</span></span>
+          <span class="stat"><span class="stat-label" data-i18n="myFleet">My Fleet:</span> <span id="my-fleet-count">0</span></span>
           <span class="stat"><span class="stat-label" data-i18n="active">Active:</span> <span id="active-vessels">0</span></span>
           <span class="stat"><span class="stat-label" data-i18n="lastUpdate">Last Update:</span> <span id="last-update" data-i18n="never">Never</span></span>
 
@@ -54,6 +55,16 @@
           </div>
           <input type="text" id="vessel-search" placeholder="Search vessels..." data-i18n-placeholder="searchPlaceholder" class="search-input">
         </div>
+
+        <!-- Manual Data Warning Banner -->
+        <div id="manual-data-warning" class="manual-data-warning hidden">
+          <div class="warning-icon">⚠️</div>
+          <div class="warning-content">
+            <strong data-i18n="manualDataTitle">Position Data Manually Fetched</strong>
+            <p data-i18n="manualDataMessage">These positions were scraped from VesselFinder and will be outdated. Real-time tracking coming with satellite view.</p>
+          </div>
+        </div>
+
         <div id="vessel-list" class="vessel-list">
           <div class="loading" data-i18n="loading">Loading vessels...</div>
         </div>
@@ -91,24 +102,34 @@
         </div>
         <div class="modal-body">
           <div class="info-section">
-            <h4 data-i18n="dataCollection">📡 Data Collection</h4>
-            <p><strong data-i18n="rateLimit">Rate Limit:</strong> <span data-i18n="rateLimitValue">100m or 180s (smart filtering)</span></p>
-            <p><strong data-i18n="updates">Updates:</strong> <span data-i18n="updatesValue">~10,000 positions/day</span></p>
-            <p><strong data-i18n="accuracy">Accuracy:</strong> <span data-i18n="accuracyValue">1 football field (100m)</span></p>
+            <h4 data-i18n="currentStatus">📊 Current Status</h4>
+            <p><strong data-i18n="fleetTracking">My Fleet Tracking:</strong> <span data-i18n="fleetTrackingValue">Manual (VesselFinder)</span></p>
+            <p><strong data-i18n="competitorTracking">Competitor Tracking:</strong> <span data-i18n="competitorTrackingValue">Real-time AIS</span></p>
+            <p><strong data-i18n="dataSource">Data Source:</strong> <span data-i18n="dataSourceValue">AISHub + Manual Fetch</span></p>
+            <p><strong data-i18n="updateFrequency">Update Frequency:</strong> <span data-i18n="updateFrequencyValue">30 seconds (live)</span></p>
           </div>
 
           <div class="info-section">
-            <h4 data-i18n="dataRetention">🗄️ Data Retention</h4>
-            <p><strong data-i18n="keep">Keep:</strong> <span data-i18n="keepValue">Last 90 days of positions</span></p>
-            <p><strong data-i18n="cleanup">Cleanup:</strong> <span data-i18n="cleanupValue">Runs daily at 2am</span></p>
-            <p><strong data-i18n="storage">Storage:</strong> <span id="db-size-estimate">~50 MB</span></p>
+            <h4 data-i18n="knownLimitations">⚠️ Known Limitations</h4>
+            <p><strong data-i18n="myFleetPositions">My Fleet Positions:</strong> <span data-i18n="myFleetPositionsValue">Manually scraped, may be outdated</span></p>
+            <p><strong data-i18n="aisGaps">AIS Coverage:</strong> <span data-i18n="aisGapsValue">Some vessels don't transmit AIS</span></p>
+            <p><strong data-i18n="positionAge">Position Age:</strong> <span data-i18n="positionAgeValue">Check "Last seen" timestamps</span></p>
           </div>
 
           <div class="info-section">
-            <h4 data-i18n="performance">⚡ Performance</h4>
-            <p><strong data-i18n="viewRefresh">View Refresh:</strong> <span data-i18n="viewRefreshValue">Every 5 minutes</span></p>
-            <p><strong data-i18n="realtime">Real-time:</strong> <span data-i18n="realtimeValue">Instant position updates</span></p>
-            <p><strong data-i18n="trailLength">Trail Length:</strong> <span data-i18n="trailLengthValue">Last 50 positions</span></p>
+            <h4 data-i18n="upcomingFeatures">🚀 Roadmap</h4>
+            <p><strong data-i18n="satelliteView">Satellite Tracking:</strong> <span data-i18n="satelliteViewValue">Real-time fleet positions via satellite</span></p>
+            <p><strong data-i18n="routePrediction">Route Prediction:</strong> <span data-i18n="routePredictionValue">AI-powered ETA calculations</span></p>
+            <p><strong data-i18n="weatherOverlay">Weather Integration:</strong> <span data-i18n="weatherOverlayValue">Live weather overlays on map</span></p>
+            <p><strong data-i18n="alerts">Custom Alerts:</strong> <span data-i18n="alertsValue">Notifications for arrival/departure</span></p>
+          </div>
+
+          <div class="info-section">
+            <h4 data-i18n="technicalDetails">🔧 Technical Details</h4>
+            <p><strong data-i18n="mapProvider">Map Provider:</strong> <span data-i18n="mapProviderValue">MapTiler (100K loads/month free)</span></p>
+            <p><strong data-i18n="database">Database:</strong> <span data-i18n="databaseValue">Supabase PostgreSQL</span></p>
+            <p><strong data-i18n="dataRetention">Data Retention:</strong> <span data-i18n="dataRetentionValue">90 days of position history</span></p>
+            <p><strong data-i18n="refreshRate">Auto Refresh:</strong> <span data-i18n="refreshRateValue">Every 30 seconds</span></p>
           </div>
         </div>
       </div>
