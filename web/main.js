@@ -555,6 +555,9 @@ function createPopupHTML(vessel, position, mmsi) {
       <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
         <div style="font-size: 0.8rem; font-weight: ${isRecent ? '600' : '500'}; color: ${statusColor};">${statusIcon}${t('lastSeen', currentLanguage)} ${lastSeenText}</div>
       </div>
+      <div style="margin-top: 0.6rem; display: flex; justify-content: flex-end;">
+        <button class="popup-see-details" data-mmsi="${mmsi}" style="background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-hover); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer;">${t('seeDetails', currentLanguage) || 'See details'}</button>
+      </div>
       ${manualWarning}
     </div>
   `;
@@ -669,7 +672,6 @@ function updateVesselMarker(mmsi, position, trail = []) {
         const v = vessels.get(clickedMmsi);
         if (!v) return;
         const pos = v.lastPosition;
-        showVesselDetails(clickedMmsi);
         new maplibregl.Popup()
           .setLngLat(coords)
           .setHTML(createPopupHTML(v, pos, clickedMmsi))
@@ -725,7 +727,6 @@ function updateVesselMarker(mmsi, position, trail = []) {
         const v = vessels.get(clickedMmsi);
         if (!v) return;
         const pos = v.lastPosition;
-        showVesselDetails(clickedMmsi);
         new maplibregl.Popup()
           .setLngLat(coords)
           .setHTML(createPopupHTML(v, pos, clickedMmsi))
@@ -901,6 +902,9 @@ function renderVesselList() {
       const vesselSidebar = document.getElementById('vessel-sidebar');
       if (vesselSidebar && window.innerWidth <= 768) {
         vesselSidebar.classList.remove('open');
+        // Show backdrop since details opens as bottom sheet
+        backdropEl?.classList.add('show');
+        backdropEl?.classList.remove('hidden');
       }
     });
   });
@@ -1122,6 +1126,12 @@ function showVesselDetails(mmsi) {
       });
     }
   }
+
+  // Show backdrop on mobile when details are open
+  if (window.innerWidth <= 768) {
+    backdropEl?.classList.add('show');
+    backdropEl?.classList.remove('hidden');
+  }
 }
 
 
@@ -1132,6 +1142,12 @@ function closeDetails() {
   vesselDetailsEl.classList.add('hidden');
   resetDetailsPanel();
   renderVesselList();
+
+  // Hide backdrop when details close (mobile)
+  if (window.innerWidth <= 768) {
+    backdropEl?.classList.remove('show');
+    setTimeout(() => backdropEl?.classList.add('hidden'), 200);
+  }
 
   if (currentRoute === 'vessel') {
     window.location.hash = '/';
@@ -1467,6 +1483,20 @@ async function init() {
   handleRoute();
 
   setupEmbedAPI();
+
+  // Delegate click from popup "See details" button
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.popup-see-details');
+    if (!btn) return;
+    const mmsi = btn.getAttribute('data-mmsi');
+    if (!mmsi) return;
+    showVesselDetails(mmsi);
+    // On mobile, ensure backdrop is visible when opening the bottom sheet
+    if (window.innerWidth <= 768) {
+      backdropEl?.classList.add('show');
+      backdropEl?.classList.remove('hidden');
+    }
+  });
 }
 
 
