@@ -66,6 +66,29 @@ function getEffectiveMode() {
   return 'error';
 }
 
+// Parse AIS ETA from ShipStaticData. Some feeds provide a string ISO, others an object { Month, Day, Hour, Minute }
+function parseAISStaticETA(eta, refUtc) {
+  if (!eta) return null;
+  try {
+    if (typeof eta === 'string') {
+      const d = new Date(eta);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    const { Month, Day, Hour, Minute } = eta || {};
+    if (!Month || !Day || Hour === undefined || Minute === undefined) return null;
+    const ref = refUtc ? new Date(refUtc) : new Date();
+    const year = ref.getUTCFullYear();
+    const candidate = new Date(Date.UTC(year, (Month - 1), Day, Hour, Minute, 0));
+    // If ETA is in the past relative to ref, assume next year
+    if (candidate.getTime() < ref.getTime()) {
+      candidate.setUTCFullYear(year + 1);
+    }
+    return candidate.toISOString();
+  } catch {
+    return null;
+  }
+}
+
 // Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
@@ -151,6 +174,8 @@ async function upsertVessel(data) {
   if (data.destination) payload.destination = data.destination;
   if (data.length_m !== undefined) payload.length_m = data.length_m;
   if (data.beam_m !== undefined) payload.beam_m = data.beam_m;
+  if (data.eta_utc) payload.eta_utc = data.eta_utc;
+  if (data.last_message_utc) payload.last_message_utc = data.last_message_utc;
 
   const { error } = await supabase
     .from('vessels')
@@ -174,6 +199,17 @@ async function ensureVessel(mmsi, name = null) {
 
   if (error && LOG_LEVEL === 'debug') {
     console.error(`[DB ERROR] ensure vessel ${mmsi}:`, error.message);
+  }
+}
+
+// Update vessel activity fields (e.g., last_message_utc, destination fallback)
+async function updateVesselActivity(mmsi, fields) {
+  const payload = { mmsi, ...fields, updated_at: new Date().toISOString() };
+  const { error } = await supabase
+    .from('vessels')
+    .upsert(payload, { onConflict: 'mmsi' });
+  if (error && LOG_LEVEL === 'debug') {
+    console.error(`[DB ERROR] update activity ${mmsi}:`, error.message);
   }
 }
 
@@ -245,6 +281,9 @@ async function handleMessage(msg) {
 
     lastMessageTime = Date.now();
 
+    // Touch vessel with last message received timestamp
+    await updateVesselActivity(mmsi, { last_message_utc: meta.time_utc, name: meta.ShipName });
+
     if (messageType === 'PositionReport') {
       const pr = data.Message?.PositionReport;
       if (!pr) return;
@@ -271,6 +310,7 @@ async function handleMessage(msg) {
 
       const length_m = (ssd.Dimension?.A ?? 0) + (ssd.Dimension?.B ?? 0);
       const beam_m = (ssd.Dimension?.C ?? 0) + (ssd.Dimension?.D ?? 0);
+      const eta_utc = parseAISStaticETA(ssd.ETA ?? ssd.Eta, meta.time_utc);
 
       await upsertVessel({
         mmsi,
@@ -280,7 +320,9 @@ async function handleMessage(msg) {
         type: ssd.Type,
         destination: ssd.Destination,
         length_m: length_m > 0 ? length_m : null,
-        beam_m: beam_m > 0 ? beam_m : null
+        beam_m: beam_m > 0 ? beam_m : null,
+        eta_utc,
+        last_message_utc: meta.time_utc
       });
     }
   } catch (err) {

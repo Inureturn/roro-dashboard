@@ -256,7 +256,8 @@ function renderVesselList() {
 
   vesselListEl.innerHTML = filtered.map(vessel => {
     const lastPos = vessel.lastPosition;
-    const isActive = lastPos && (Date.now() - new Date(lastPos.ts).getTime()) < 3600000; // Active if < 1 hour
+    const lastTs = lastPos?.ts || vessel.last_message_utc || vessel.updated_at;
+    const isActive = lastTs && (Date.now() - new Date(lastTs).getTime()) < 3600000; // Active if < 1 hour
     const statusClass = !lastPos ? 'offline' : isActive ? '' : 'stale';
 
     return `
@@ -267,7 +268,7 @@ function renderVesselList() {
         <div class="vessel-status">
           <span class="status-indicator">
             <span class="status-dot ${statusClass}"></span>
-            ${!lastPos ? 'No Data' : isActive ? 'Active' : 'Last seen > 1h'}
+            ${!lastTs ? 'No Data' : isActive ? 'Active' : 'Last seen > 1h'}
           </span>
           ${lastPos ? `<span>${lastPos.sog_knots?.toFixed(1) || '0.0'} kn</span>` : ''}
         </div>
@@ -370,13 +371,25 @@ function showVesselDetails(mmsi) {
           <span class="detail-value">${new Date(pos.ts).toLocaleString()}</span>
         </div>
       </div>
-    ` : '<div class="loading">No position data available</div>'}
+    ` : `
+      <div class="detail-section">
+        <h3>Current Position</h3>
+        <div class="detail-row">
+          <span class="detail-label">Last Message</span>
+          <span class="detail-value">${vessel.last_message_utc ? new Date(vessel.last_message_utc).toLocaleString() : 'No Data'}</span>
+        </div>
+      </div>
+    `}
 
     <div class="detail-section">
       <h3>Voyage</h3>
       <div class="detail-row">
         <span class="detail-label">Destination</span>
         <span class="detail-value">${vessel.destination || pos?.destination || 'N/A'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">ETA</span>
+        <span class="detail-value">${vessel.eta_utc ? new Date(vessel.eta_utc).toLocaleString() : 'N/A'}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">Operator</span>
