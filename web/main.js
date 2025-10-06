@@ -34,15 +34,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const map = new maplibregl.Map({
   container: 'map',
   style: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`,
-  center: [128, 36], // Center between Korea and Mediterranean
-  zoom: 3
+  center: [30, 40], // Mediterranean Sea - where most vessels are
+  zoom: 2.5 // Lower zoom to see more area
 });
 
 // State
 let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
-let currentFilter = 'tracked'; // default to tracked (my fleet + competitors)
+let currentFilter = 'my-fleet'; // default to my fleet only
 let lastDataUpdate = null; // Track last AIS data update
 let currentRoute = null; // Current route for navigation
 
@@ -198,19 +198,30 @@ function updateVesselMarker(mmsi, position, trail = []) {
     });
   }
 
-  // Create marker element
+  // Create arrow marker element pointing in heading/course direction
   const el = document.createElement('div');
   el.className = 'vessel-marker';
   const markerColor = vessel.is_my_fleet ? '#4a7fc9' : (vessel.is_competitor ? '#ff9800' : '#8090b0');
-  el.style.cssText = `
-    width: 20px;
-    height: 20px;
-    background: ${markerColor};
-    border: 2px solid #fff;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  const heading = position.heading_deg || position.cog_deg || 0;
+
+  // Create SVG arrow
+  el.innerHTML = `
+    <svg width="32" height="32" viewBox="0 0 32 32" style="transform: rotate(${heading}deg);">
+      <path d="M16 2 L26 28 L16 22 L6 28 Z"
+            fill="${markerColor}"
+            stroke="#fff"
+            stroke-width="2"/>
+    </svg>
   `;
+  el.style.cssText = `
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  `;
+
+  // Add vessel name on hover
+  el.title = vessel.name || `MMSI ${mmsi}`;
 
   // Create popup with enhanced info
   const destination = vessel.destination || position.destination || 'N/A';
