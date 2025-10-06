@@ -629,13 +629,16 @@ function updateMarkerVisibility(mmsi) {
 
   const el = markerData.marker.getElement();
   if (el) {
-    el.style.display = shouldShow ? '' : 'none';
+    el.style.display = shouldShow ? 'flex' : 'none';
+    el.style.visibility = shouldShow ? 'visible' : 'hidden';
   }
 
   // Also hide/show trail
   if (markerData.trail && map.getLayer(markerData.trail)) {
     map.setLayoutProperty(markerData.trail, 'visibility', shouldShow ? 'visible' : 'none');
   }
+
+  console.log(`[FILTER] ${vessel.name}: ${shouldShow ? 'SHOW' : 'HIDE'} (filter: ${currentFilter}, is_my_fleet: ${vessel.is_my_fleet}, is_competitor: ${vessel.is_competitor})`);
 }
 
 // Update all marker visibility
