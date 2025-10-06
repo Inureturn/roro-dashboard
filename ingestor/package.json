@@ -5,7 +5,8 @@
   "description": "24/7 AIS position ingestor for RoRo vessel tracking",
   "main": "ingest.mjs",
   "scripts": {
-    "start": "node ingest.mjs"
+    "start": "node ingest.mjs",
+    "diagnose": "node diagnose.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

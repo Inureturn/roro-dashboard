@@ -2,8 +2,8 @@ import 'dotenv/config';
 import WebSocket from 'ws';
 import { createClient } from '@supabase/supabase-js';
 
-// Environment validation
-const REQUIRED_VARS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE', 'AISSTREAM_KEY', 'FLEET_MMSIS', 'BBOX_JSON'];
+// Environment validation (only the essentials are required)
+const REQUIRED_VARS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE', 'AISSTREAM_KEY'];
 for (const varName of REQUIRED_VARS) {
   if (!process.env[varName]) {
     console.error(`Missing required environment variable: ${varName}`);
@@ -15,12 +15,53 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 const AISSTREAM_KEY = process.env.AISSTREAM_KEY;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
-const FLEET_MMSIS = process.env.FLEET_MMSIS.split(',').map(m => m.trim());
-const BBOX_JSON = process.env.BBOX_JSON.split(';').map(bbox => JSON.parse(bbox));
+// Allow empty/optional values safely
+const FLEET_MMSIS = (process.env.FLEET_MMSIS || '')
+  .split(',')
+  .map(m => m.trim())
+  .filter(Boolean);
+
+// Parse BBOX list where each item is a JSON array string: "[[lon1,lat1],[lon2,lat2]]"; items separated by ';'
+const BBOX_JSON = (process.env.BBOX_JSON || '')
+  .split(';')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .flatMap((bbox, idx) => {
+    try {
+      const parsed = JSON.parse(bbox);
+      // Expect [[lon1,lat1],[lon2,lat2]]
+      if (
+        Array.isArray(parsed) && parsed.length === 2 &&
+        Array.isArray(parsed[0]) && Array.isArray(parsed[1])
+      ) {
+        return [parsed];
+      }
+      console.warn(`[INIT] Ignoring invalid BBOX at index ${idx}:`, bbox);
+      return [];
+    } catch (e) {
+      console.warn(`[INIT] Failed to parse BBOX at index ${idx}:`, e.message);
+      return [];
+    }
+  });
 
 const HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+// Stream behavior:
+//  - 'bbox' subscribes by bounding boxes only
+//  - 'mmsi' subscribes by fleet MMSIs only
+//  - 'auto' (default) prefers BBOX if present, else MMSI
+const STREAM_MODE = (process.env.STREAM_MODE || 'auto').toLowerCase();
+// If false (default), we drop non-fleet MMSIs before inserting
+const ALLOW_NON_FLEET = String(process.env.ALLOW_NON_FLEET || 'false').toLowerCase() === 'true';
 const MIN_DISTANCE_METERS = 100;
 const MIN_TIME_SECONDS = 180;
+
+function getEffectiveMode() {
+  if (STREAM_MODE === 'bbox' || STREAM_MODE === 'mmsi') return STREAM_MODE;
+  // auto selection
+  if (BBOX_JSON.length) return 'bbox';
+  if (FLEET_MMSIS.length) return 'mmsi';
+  return 'error';
+}
 
 // Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
@@ -33,6 +74,7 @@ let ws = null;
 let reconnectDelay = 1000;
 let reconnectTimer = null;
 let heartbeatTimer = null;
+let keepAliveTimer = null; // periodic ws ping
 let lastMessageTime = Date.now();
 let insertCountThisMinute = 0;
 let insertCountTimer = null;
@@ -132,6 +174,14 @@ async function insertPosition(data) {
   const mmsi = String(data.mmsi);
   const { lat, lon, ts } = data;
 
+  // If we subscribed by bounding boxes, restrict DB inserts to our fleet unless explicitly allowed
+  if (getEffectiveMode() !== 'mmsi' && !ALLOW_NON_FLEET && FLEET_MMSIS.length && !FLEET_MMSIS.includes(mmsi)) {
+    if (LOG_LEVEL === 'debug') {
+      console.log(`[SKIP] Non-fleet MMSI ${mmsi} (STREAM_MODE=${STREAM_MODE})`);
+    }
+    return;
+  }
+
   if (!isValidCoord(lat, lon)) {
     if (LOG_LEVEL === 'debug') {
       console.log(`[SKIP] Invalid coords for ${mmsi}: ${lat}, ${lon}`);
@@ -225,17 +275,29 @@ async function handleMessage(msg) {
   }
 }
 
-// Subscribe to AIS stream
+// Subscribe to AIS stream (never combine filters to avoid over-restriction)
 function subscribe() {
+  const mode = getEffectiveMode();
+  if (mode === 'error') {
+    console.error('[INIT] No filters configured. Provide BBOX_JSON or FLEET_MMSIS (or set STREAM_MODE).');
+    ws.close();
+    return;
+  }
+
   const subscription = {
     APIKey: AISSTREAM_KEY,
-    BoundingBoxes: BBOX_JSON,
-    FiltersShipMMSI: FLEET_MMSIS,
     FilterMessageTypes: ['PositionReport', 'ShipStaticData']
   };
 
+  if (mode === 'bbox') {
+    subscription.BoundingBoxes = BBOX_JSON;
+  } else if (mode === 'mmsi') {
+    subscription.FiltersShipMMSI = FLEET_MMSIS;
+  }
+
   ws.send(JSON.stringify(subscription));
   console.log('[WS] Subscription sent', {
+    mode,
     bboxes: BBOX_JSON.length,
     mmsis: FLEET_MMSIS.length
   });
@@ -266,21 +328,48 @@ function connect() {
         ws.close();
       }
     }, 60000); // Check every minute
+
+    // Send periodic ping to keep the connection alive (some servers expect client pings)
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
+    keepAliveTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.ping();
+        } catch (e) {
+          console.warn('[WS] Ping failed:', e.message);
+        }
+      }
+    }, 30000); // every 30s
   });
 
   ws.on('message', (data) => {
-    handleMessage(data.toString());
+    try {
+      handleMessage(data.toString());
+      lastMessageTime = Date.now();
+    } catch (e) {
+      console.error('[WS MESSAGE ERROR]', e.message);
+    }
+  });
+
+  ws.on('pong', () => {
+    // Keep-alive acknowledgment from server
+    lastMessageTime = Date.now();
   });
 
   ws.on('error', (err) => {
-    console.error('[WS ERROR]', err.message);
+    console.error('[WS ERROR]', err && (err.stack || err.message || String(err)));
   });
 
-  ws.on('close', () => {
-    console.log('[WS] Disconnected');
+  ws.on('close', (code, reason) => {
+    const reasonText = (() => {
+      if (!reason) return '';
+      try { return reason.toString(); } catch { return ''; }
+    })();
+    console.log('[WS] Disconnected', code !== undefined ? `code=${code}` : '', reasonText ? `reason=${reasonText}` : '');
 
     if (subscriptionTimer) clearTimeout(subscriptionTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
 
     // Reconnect with exponential backoff
     console.log(`[WS] Reconnecting in ${reconnectDelay}ms...`);
@@ -325,5 +414,11 @@ console.log(`[INIT] Fleet MMSIs: ${FLEET_MMSIS.length}`);
 console.log(`[INIT] Bounding boxes: ${BBOX_JSON.length}`);
 console.log(`[INIT] Log level: ${LOG_LEVEL}`);
 console.log(`[INIT] Rate limits: ${MIN_DISTANCE_METERS}m / ${MIN_TIME_SECONDS}s`);
+console.log(`[INIT] Mode: ${getEffectiveMode()} (STREAM_MODE=${STREAM_MODE})`);
+
+if (getEffectiveMode() === 'error') {
+  console.error('[INIT] Missing filters. Set BBOX_JSON (preferred) or FLEET_MMSIS.');
+  process.exit(1);
+}
 
 connect();
