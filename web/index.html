@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoRo Fleet Dashboard</title>
+  <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-content">
+        <h1>🚢 RoRo Fleet Dashboard</h1>
+        <div class="header-stats">
+          <span class="stat"><span class="stat-label">Total Vessels:</span> <span id="total-vessels">0</span></span>
+          <span class="stat"><span class="stat-label">Active:</span> <span id="active-vessels">0</span></span>
+          <span class="stat"><span class="stat-label">Last Update:</span> <span id="last-update">Never</span></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="dashboard-main">
+      <!-- Vessel List Sidebar -->
+      <aside class="vessel-sidebar">
+        <div class="sidebar-header">
+          <h2>Fleet</h2>
+          <input type="text" id="vessel-search" placeholder="Search vessels..." class="search-input">
+        </div>
+        <div id="vessel-list" class="vessel-list">
+          <div class="loading">Loading vessels...</div>
+        </div>
+      </aside>
+
+      <!-- Map Container -->
+      <div class="map-container">
+        <div id="map"></div>
+      </div>
+
+      <!-- Vessel Details Panel (Initially Hidden) -->
+      <aside class="vessel-details hidden" id="vessel-details">
+        <div class="details-header">
+          <h2 id="details-title">Vessel Details</h2>
+          <button class="close-btn" id="close-details">&times;</button>
+        </div>
+        <div class="details-content" id="details-content">
+          <div class="loading">Select a vessel to view details</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
