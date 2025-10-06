@@ -1,39 +1,39 @@
 import './style.css';
-import mapboxgl from 'mapbox-gl';
+import maplibregl from 'maplibre-gl';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration from environment variables
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rbffmfuvqgxlthzvmtir.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiZmZtZnV2cWd4bHRoenZtdGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2NjU5MTAsImV4cCI6MjA3NTI0MTkxMH0.iJ4N1s6r4P9Uw1Ifzfd6PQSX5p1mH5VWeCIIRFSnL2k';
 
-// Check for Mapbox token
-if (!MAPBOX_TOKEN) {
+// Check for MapTiler API key
+if (!MAPTILER_KEY) {
   document.getElementById('map').innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff9800; text-align: center; padding: 2rem;">
       <div>
-        <h2>⚠️ Mapbox Token Required</h2>
-        <p>Please add your Mapbox token to <code>.env</code> file:</p>
+        <h2>⚠️ MapTiler API Key Required</h2>
+        <p>Please add your MapTiler API key to <code>.env</code> file:</p>
         <ol style="text-align: left; display: inline-block; margin-top: 1rem;">
-          <li>Sign up at <a href="https://account.mapbox.com/" target="_blank">account.mapbox.com</a></li>
-          <li>Copy your default public token</li>
-          <li>Add to <code>web/.env</code>: <code>VITE_MAPBOX_TOKEN=your_token_here</code></li>
+          <li>Sign up at <a href="https://cloud.maptiler.com/account/keys/" target="_blank">cloud.maptiler.com</a> (FREE)</li>
+          <li>Copy your API key</li>
+          <li>Add to <code>web/.env</code>: <code>VITE_MAPTILER_KEY=your_key_here</code></li>
           <li>Restart: <code>npm run dev</code></li>
         </ol>
+        <p style="margin-top: 1rem; color: #4caf50;">✅ Free tier: 100,000 map loads/month</p>
       </div>
     </div>
   `;
-  throw new Error('Mapbox token not configured');
+  throw new Error('MapTiler key not configured');
 }
 
 // Initialize Supabase
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Initialize Mapbox
-mapboxgl.accessToken = MAPBOX_TOKEN;
-const map = new mapboxgl.Map({
+// Initialize MapLibre with MapTiler tiles (PRD compliant)
+const map = new maplibregl.Map({
   container: 'map',
-  style: 'mapbox://styles/mapbox/dark-v11',
+  style: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`,
   center: [128, 36], // Center between Korea and Mediterranean
   zoom: 3
 });
@@ -125,7 +125,7 @@ function updateVesselMarker(mmsi, position) {
   `;
 
   // Create popup
-  const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+  const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
     <div class="popup-vessel-name">${vessel.name || mmsi}</div>
     <div class="popup-details">
       <div>MMSI: ${mmsi}</div>
@@ -136,7 +136,7 @@ function updateVesselMarker(mmsi, position) {
   `);
 
   // Create and add marker
-  const marker = new mapboxgl.Marker(el)
+  const marker = new maplibregl.Marker(el)
     .setLngLat([position.lon, position.lat])
     .setPopup(popup)
     .addTo(map);

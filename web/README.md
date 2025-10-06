@@ -4,20 +4,21 @@ Real-time vessel tracking dashboard with live AIS position updates.
 
 ## Features
 
-- 🗺️ **Interactive Map** - Mapbox GL with vessel markers
+- 🗺️ **Interactive Map** - MapLibre GL with FREE MapTiler tiles
 - 📍 **Real-time Updates** - Live position updates via Supabase Realtime
 - 🚢 **Vessel Details** - Click any vessel to view complete information
 - 🔍 **Search** - Filter vessels by name or MMSI
 - 📊 **Fleet Overview** - Quick stats on total/active vessels
 - 🎨 **Modern UI** - Dark theme, responsive design
+- 💰 **Cost**: FREE (100k map loads/month on MapTiler free tier)
 
 ## Quick Start
 
-### 1. Get a Mapbox Token
+### 1. Get a MapTiler API Key (FREE)
 
-1. Sign up at https://account.mapbox.com/
-2. Go to **Tokens** tab
-3. Copy your **Default public token** (starts with `pk.`)
+1. Sign up at https://cloud.maptiler.com/ (FREE account)
+2. Go to **API Keys** tab
+3. Copy your API key
 
 ### 2. Configure Environment
 
@@ -28,10 +29,10 @@ cd web
 cp .env.example .env
 ```
 
-Edit `.env` and add your Mapbox token:
+Edit `.env` and add your MapTiler API key:
 
 ```bash
-VITE_MAPBOX_TOKEN=pk.your_token_here
+VITE_MAPTILER_KEY=your_api_key_here
 ```
 
 ### 3. Install & Run
@@ -43,7 +44,7 @@ npm run dev
 
 Open http://localhost:5173 in your browser!
 
-> **Note**: If you see a warning about missing Mapbox token, make sure you've added `VITE_MAPBOX_TOKEN` to your `.env` file and restarted the dev server.
+> **Note**: If you see a warning about missing MapTiler key, make sure you've added `VITE_MAPTILER_KEY` to your `.env` file and restarted the dev server.
 
 ## Development
 
