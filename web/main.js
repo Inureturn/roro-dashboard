@@ -259,6 +259,38 @@ function updateVesselMarker(mmsi, position, trail = []) {
 
   // Update vessel data with latest position
   vessels.set(mmsi, { ...vessel, lastPosition: position });
+
+  // Apply filter visibility
+  updateMarkerVisibility(mmsi);
+}
+
+// Update marker visibility based on current filter
+function updateMarkerVisibility(mmsi) {
+  const markerData = markers.get(mmsi);
+  const vessel = vessels.get(mmsi);
+
+  if (!markerData || !vessel) return;
+
+  const shouldShow =
+    currentFilter === 'tracked' ? true : // show all in tracked view
+    currentFilter === 'my-fleet' ? vessel.is_my_fleet :
+    currentFilter === 'competitors' ? vessel.is_competitor :
+    true;
+
+  const el = markerData.marker.getElement();
+  if (el) {
+    el.style.display = shouldShow ? '' : 'none';
+  }
+
+  // Also hide/show trail
+  if (markerData.trail && map.getLayer(markerData.trail)) {
+    map.setLayoutProperty(markerData.trail, 'visibility', shouldShow ? 'visible' : 'none');
+  }
+}
+
+// Update all marker visibility
+function updateAllMarkerVisibility() {
+  markers.forEach((_, mmsi) => updateMarkerVisibility(mmsi));
 }
 
 // Render vessel list
@@ -270,7 +302,8 @@ function renderVesselList() {
     // Apply filter
     if (currentFilter === 'my-fleet' && !vessel.is_my_fleet) return false;
     if (currentFilter === 'competitors' && !vessel.is_competitor) return false;
-    if (currentFilter === 'tracked' && !(vessel.is_my_fleet || vessel.is_competitor)) return false;
+    // 'tracked' shows all vessels (both fleet and competitors)
+    // No filter needed for 'tracked' - it's the default "show all" view
 
     // Apply search filter
     const name = (vessel.name || '').toLowerCase();
@@ -735,6 +768,7 @@ async function init() {
         currentFilter = tab.dataset.filter;
         renderVesselList();
         updateStats();
+        updateAllMarkerVisibility(); // Update marker visibility on map
       });
     });
     // Sync initial tab active state with currentFilter
