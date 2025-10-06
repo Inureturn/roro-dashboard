@@ -16,15 +16,22 @@ Real-time vessel tracking dashboard with live AIS position updates.
 ### 1. Get a Mapbox Token
 
 1. Sign up at https://account.mapbox.com/
-2. Create a new token (or use default public token)
-3. Copy the token
+2. Go to **Tokens** tab
+3. Copy your **Default public token** (starts with `pk.`)
 
-### 2. Update Configuration
+### 2. Configure Environment
 
-Edit `main.js` and replace:
+Create a `.env` file in the `web/` directory:
 
-```javascript
-const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN'; // Paste your token here
+```bash
+cd web
+cp .env.example .env
+```
+
+Edit `.env` and add your Mapbox token:
+
+```bash
+VITE_MAPBOX_TOKEN=pk.your_token_here
 ```
 
 ### 3. Install & Run
@@ -35,6 +42,8 @@ npm run dev
 ```
 
 Open http://localhost:5173 in your browser!
+
+> **Note**: If you see a warning about missing Mapbox token, make sure you've added `VITE_MAPBOX_TOKEN` to your `.env` file and restarted the dev server.
 
 ## Development
 

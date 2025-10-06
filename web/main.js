@@ -2,10 +2,29 @@ import './style.css';
 import mapboxgl from 'mapbox-gl';
 import { createClient } from '@supabase/supabase-js';
 
-// Configuration
-const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN'; // Get from https://account.mapbox.com/
-const SUPABASE_URL = 'https://rbffmfuvqgxlthzvmtir.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiZmZtZnV2cWd4bHRoenZtdGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2NjU5MTAsImV4cCI6MjA3NTI0MTkxMH0.iJ4N1s6r4P9Uw1Ifzfd6PQSX5p1mH5VWeCIIRFSnL2k';
+// Configuration from environment variables
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rbffmfuvqgxlthzvmtir.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiZmZtZnV2cWd4bHRoenZtdGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2NjU5MTAsImV4cCI6MjA3NTI0MTkxMH0.iJ4N1s6r4P9Uw1Ifzfd6PQSX5p1mH5VWeCIIRFSnL2k';
+
+// Check for Mapbox token
+if (!MAPBOX_TOKEN) {
+  document.getElementById('map').innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff9800; text-align: center; padding: 2rem;">
+      <div>
+        <h2>⚠️ Mapbox Token Required</h2>
+        <p>Please add your Mapbox token to <code>.env</code> file:</p>
+        <ol style="text-align: left; display: inline-block; margin-top: 1rem;">
+          <li>Sign up at <a href="https://account.mapbox.com/" target="_blank">account.mapbox.com</a></li>
+          <li>Copy your default public token</li>
+          <li>Add to <code>web/.env</code>: <code>VITE_MAPBOX_TOKEN=your_token_here</code></li>
+          <li>Restart: <code>npm run dev</code></li>
+        </ol>
+      </div>
+    </div>
+  `;
+  throw new Error('Mapbox token not configured');
+}
 
 // Initialize Supabase
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
