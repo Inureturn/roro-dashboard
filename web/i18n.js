@@ -283,7 +283,8 @@ export function getCurrentLanguage() {
   if (stored && translations[stored]) {
     return stored;
   }
-  return getBrowserLanguage();
+  // Default to Korean when no stored preference
+  return 'ko';
 }
 
 // Set language
