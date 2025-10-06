@@ -407,7 +407,7 @@ async function fetchPositions() {
   // Fetch ALL position data (we'll group by mmsi to get latest + trail)
   const { data: allPositions, error } = await supabase
     .from('vessel_positions')
-    .select('mmsi, ts, lat, lon, sog_knots, cog_deg, heading_deg, nav_status, destination')
+    .select('mmsi, ts, lat, lon, sog_knots, cog_deg, heading_deg, nav_status, destination, source')
     .order('ts', { ascending: false })
     .limit(2000); // Get enough for latest + trails
 
@@ -438,12 +438,38 @@ async function fetchPositions() {
 
   console.log(`[DEBUG] Found positions for ${vesselData.size} vessels`);
 
+  // Check if any position is "pulled" data and show banner
+  checkForPulledData(allPositions);
+
   // Update markers
   vesselData.forEach((data, mmsi) => {
     updateVesselMarker(mmsi, data.latest, data.trail);
   });
 
   updateLastUpdate();
+}
+
+// Check if data is pulled (not real-time) and show banner
+function checkForPulledData(positions) {
+  const pulledData = positions.find(p => p.source === 'pulled');
+
+  const banner = document.getElementById('demo-data-banner');
+  const dateEl = document.getElementById('demo-data-date');
+
+  if (pulledData && banner && dateEl) {
+    // Extract date from pulled position
+    const fetchDate = new Date(pulledData.ts).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    dateEl.textContent = fetchDate;
+    banner.classList.remove('hidden');
+    console.log('[INFO] Demo data detected - showing banner');
+  } else if (banner) {
+    banner.classList.add('hidden');
+  }
 }
 
 // Update vessel marker on map

@@ -493,6 +493,28 @@ body.light-theme .map-attribution {
   display: none;
 }
 
+/* Demo Data Banner */
+.demo-data-banner {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: #fff;
+  padding: 12px 24px;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  z-index: 90;
+  animation: slideDown 0.3s ease;
+}
+
+.demo-data-banner.hidden {
+  display: none;
+}
+
+#demo-data-date {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;
