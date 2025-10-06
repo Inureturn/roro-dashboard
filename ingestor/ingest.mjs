@@ -319,7 +319,10 @@ async function handleMessage(msg) {
     lastMessageTime = Date.now();
 
     // Touch vessel with last message received timestamp
-    await updateVesselActivity(mmsi, { last_message_utc: meta.time_utc, name: meta.ShipName });
+    await updateVesselActivity(mmsi, {
+      last_message_utc: parseTimestamp(meta.time_utc),
+      name: meta.ShipName
+    });
 
     if (messageType === 'PositionReport') {
       const pr = data.Message?.PositionReport;
@@ -359,7 +362,7 @@ async function handleMessage(msg) {
         length_m: length_m > 0 ? length_m : null,
         beam_m: beam_m > 0 ? beam_m : null,
         eta_utc,
-        last_message_utc: meta.time_utc
+        last_message_utc: parseTimestamp(meta.time_utc)
       });
     }
   } catch (err) {
