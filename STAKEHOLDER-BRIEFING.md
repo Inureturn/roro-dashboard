@@ -50,10 +50,20 @@ When you open the dashboard, the map appears empty - **no vessel markers are vis
 ### Why This Happens
 The current map style uses a **vector basemap** that renders markers beneath the map's surface layers, making them invisible. This is a rendering order issue, not a data issue.
 
-### Proof That Data Is Working
-1. **Open the left sidebar** → You'll see all 14 vessels listed with live data
-2. **Click any vessel** → Full details panel appears with current position
-3. **Check timestamps** → Shows recent updates (e.g., "5 mins ago")
+### ⚠️ Temporary Demo Data (Optional Workaround)
+For stakeholder presentations, we can prepopulate fleet vessels with placeholder data:
+- **Purpose:** Show the dashboard interface with populated vessels
+- **Method:** Run `supabase/prepopulate-fleet-TEMPORARY.sql` once
+- **Warning:** Data will be outdated within hours (positions show "Last seen 20 hours ago")
+- **Disclaimer:** This is NOT real-time tracking - it's demo data only
+- **Timeline:** DELETE this workaround after satellite view is implemented
+
+**Important:** Always explain to stakeholders that this is temporary demo data and real-time tracking will be available once satellite view is ready.
+
+### Proof That Real Data Is Working
+1. **Open the left sidebar** → You'll see all 14 vessels listed
+2. **Click any vessel** → Full details panel appears
+3. **Check timestamps** → Shows when last seen (demo data: ~20 hours ago, real data: ~5 mins ago)
 4. **Filter by fleet** → My Fleet shows exactly 5 vessels, Competitors shows 9
 
 ### Technical Details
