@@ -921,6 +921,11 @@ body.embed-mode .map-attribution {
   right: 1rem;
 }
 
+/* Hide mobile controls on desktop by default */
+.mobile-controls {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .vessel-sidebar {
@@ -979,7 +984,7 @@ body.embed-mode .map-attribution {
 
   /* Mobile-only controls inside sidebar */
   .mobile-controls {
-    display: flex;
+    display: flex !important; /* Force show on mobile */
     gap: 0.5rem;
     margin-top: 0.75rem;
   }

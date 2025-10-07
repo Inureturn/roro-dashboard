@@ -67,9 +67,34 @@ const map = new maplibregl.Map({
 let vessels = new Map(); // mmsi -> vessel data
 let markers = new Map(); // mmsi -> marker
 let selectedVessel = null;
-let currentFilter = 'my-fleet'; // default to my fleet only
+let currentFilter = 'tracked'; // default to all tracked vessels
 let lastDataUpdate = null; // Track last AIS data update
 let currentRoute = null; // Current route for navigation
+
+// MY FLEET: Always show these 5 vessels, regardless of last_seen status
+const MY_FLEET_MMSIS = [
+  '357170000', // Ah Shin
+  '352808000', // Hae Shin
+  '352001129', // O Soo Shin
+  '355297000', // Sang Shin
+  '356005000'  // Young Shin
+];
+
+// VOYAGE DETECTION: Safe thresholds for satellite AIS
+const VOYAGE_CONFIG = {
+  portArrival: {
+    maxSpeed: 0.5,              // knots - stationary threshold
+    minDuration: 8 * 60,        // minutes - 8 hours minimum
+    maxAISGap: 120,             // minutes - 2 hour max gap during stay
+    minConsecutivePositions: 3, // at least 3 low-speed positions
+    portRadiusNM: 5             // within 5 nautical miles of port
+  },
+  portDeparture: {
+    minSpeed: 3,                // knots - moving threshold
+    minDuration: 30,            // minutes - sustained movement
+    minDistanceFromPortNM: 5    // 5 nm away from port
+  }
+};
 
 // DOM Elements
 const vesselListEl = document.getElementById('vessel-list');
@@ -418,18 +443,35 @@ async function fetchVessels() {
 
   console.log(`[DEBUG] Fetched ${data?.length || 0} vessels from database`);
 
-  if (!data || data.length === 0) {
-    vesselListEl.innerHTML = `
-      <div class="loading">
-        ${t('noVesselsYet', currentLanguage)}<br>
-        <small style="color: #8090b0; margin-top: 0.5rem;">${t('checkBack', currentLanguage)}</small>
-      </div>
-    `;
-    return;
+  // Store fetched vessels
+  if (data && data.length > 0) {
+    data.forEach(vessel => {
+      vessels.set(vessel.mmsi, vessel);
+    });
   }
 
-  data.forEach(vessel => {
-    vessels.set(vessel.mmsi, vessel);
+  // EXCLUSIVE RULE: Ensure MY_FLEET vessels ALWAYS exist, even if not in DB
+  const fleetNames = {
+    '357170000': 'Ah Shin',
+    '352808000': 'Hae Shin',
+    '352001129': 'O Soo Shin',
+    '355297000': 'Sang Shin',
+    '356005000': 'Young Shin'
+  };
+
+  MY_FLEET_MMSIS.forEach(mmsi => {
+    if (!vessels.has(mmsi)) {
+      // Create fallback entry for missing fleet vessel
+      console.log(`[MY_FLEET] Adding fallback entry for ${fleetNames[mmsi]} (${mmsi})`);
+      vessels.set(mmsi, {
+        mmsi,
+        name: fleetNames[mmsi],
+        is_my_fleet: true,
+        operator: 'Shin Group',
+        operator_group: 'Shin Group',
+        type: 'Ro-Ro Cargo'
+      });
+    }
   });
 
   renderVesselList();
@@ -441,24 +483,46 @@ async function fetchVessels() {
 async function fetchPositions() {
   console.log('[DEBUG] Fetching latest positions...');
 
-  // Fetch ALL position data (we'll group by mmsi to get latest + trail)
-  const { data: allPositions, error } = await supabase
-    .from('vessel_positions')
-    .select('mmsi, ts, lat, lon, sog_knots, cog_deg, heading_deg, nav_status, destination, source')
-    .order('ts', { ascending: false })
-    .limit(2000); // Get enough for latest + trails
+  // Fetch ALL position data using pagination (Supabase default limit is 1000)
+  // Fetch in batches to get all data
+  let allPositions = [];
+  const batchSize = 1000;
+  let hasMore = true;
+  let offset = 0;
 
-  if (error) {
-    console.error('[ERROR] Error fetching positions:', error);
-    return;
+  while (hasMore && offset < 10000) { // Safety limit: max 10K positions
+    const { data, error } = await supabase
+      .from('vessel_positions')
+      .select('mmsi, ts, lat, lon, sog_knots, cog_deg, heading_deg, nav_status, destination, source')
+      .order('ts', { ascending: false })
+      .range(offset, offset + batchSize - 1);
+
+    if (error) {
+      console.error('[ERROR] Error fetching positions:', error);
+      break;
+    }
+
+    if (!data || data.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    allPositions = allPositions.concat(data);
+    console.log(`[DEBUG] Fetched batch: ${data.length} positions (total: ${allPositions.length})`);
+
+    if (data.length < batchSize) {
+      hasMore = false; // Last batch
+    }
+
+    offset += batchSize;
   }
 
-  if (!allPositions || allPositions.length === 0) {
+  if (allPositions.length === 0) {
     console.warn('[WARN] No position data available yet');
     return;
   }
 
-  console.log(`[DEBUG] Fetched ${allPositions.length} positions from database`);
+  console.log(`[DEBUG] Total fetched: ${allPositions.length} positions from database`);
 
   // Group by vessel - first position is latest, rest is trail
   const vesselData = new Map(); // mmsi -> { latest, trail }
@@ -467,7 +531,23 @@ async function fetchPositions() {
       vesselData.set(pos.mmsi, { latest: pos, trail: [] });
     } else {
       const data = vesselData.get(pos.mmsi);
-      if (data.trail.length < 50) {
+
+      // INTELLIGENT TRAIL FILTERING:
+      // All vessels get same treatment (2000 points, 30 days for ultra-detailed oceanic trails)
+      const maxTrailLength = 2000; // Increased for intercontinental tracking
+      const maxDaysBack = 30; // Fixed 30 days
+
+      const cutoffTime = Date.now() - (maxDaysBack * 24 * 60 * 60 * 1000);
+      const posTime = new Date(pos.ts).getTime();
+
+      // Speed filter: Include ALL positions (even stationary) for testing
+      const includePosition = true; // Was: pos.sog_knots > 0.5
+
+      // Filter logic:
+      // 1. Within 30-day window
+      // 2. Vessel is moving (speed > 0.5 knots)
+      // 3. Under max trail length (1000 points)
+      if (data.trail.length < maxTrailLength && posTime > cutoffTime && includePosition) {
         data.trail.push(pos);
       }
     }
@@ -578,6 +658,93 @@ function createPopupHTML(vessel, position, mmsi) {
       ${manualWarning}
     </div>
   `;
+}
+
+// VOYAGE DETECTION: Helper functions (satellite AIS gap-aware)
+
+// Check for AIS gaps in position data
+function checkForAISGaps(positions, maxGapMinutes = 120) {
+  const gaps = [];
+  for (let i = 1; i < positions.length; i++) {
+    const prev = positions[i - 1];
+    const curr = positions[i];
+    const gapMinutes = (new Date(prev.ts) - new Date(curr.ts)) / 1000 / 60;
+
+    if (gapMinutes > maxGapMinutes) {
+      gaps.push({ start: curr.ts, end: prev.ts, durationMin: gapMinutes });
+    }
+  }
+  return gaps;
+}
+
+// Detect if vessel is currently at port (safe for satellite AIS)
+function detectCurrentPortStatus(trail) {
+  if (!trail || trail.length < VOYAGE_CONFIG.portArrival.minConsecutivePositions) {
+    return null;
+  }
+
+  const config = VOYAGE_CONFIG.portArrival;
+  const recentPositions = trail.slice(0, 20); // Check last 20 positions
+
+  // Check for AIS gaps
+  const gaps = checkForAISGaps(recentPositions, config.maxAISGap);
+  if (gaps.length > 0) {
+    console.log('[VOYAGE] AIS gaps detected, using conservative port detection');
+  }
+
+  // Check if all recent positions are low speed
+  const stationaryPositions = recentPositions.filter(p => p.sog_knots <= config.maxSpeed);
+  if (stationaryPositions.length < config.minConsecutivePositions) {
+    return null; // Not enough stationary positions
+  }
+
+  // Calculate duration of stationary period
+  const oldest = stationaryPositions[stationaryPositions.length - 1];
+  const newest = stationaryPositions[0];
+  const durationMin = (new Date(newest.ts) - new Date(oldest.ts)) / 1000 / 60;
+
+  if (durationMin < config.minDuration) {
+    return null; // Not stationary long enough
+  }
+
+  // Port detected (with confidence level based on gaps)
+  return {
+    status: 'at_port',
+    since: oldest.ts,
+    durationHours: durationMin / 60,
+    confidence: gaps.length === 0 ? 'high' : 'medium',
+    location: { lat: newest.lat, lon: newest.lon }
+  };
+}
+
+// Detect last port departure (for voyage segmentation)
+function detectLastDeparture(trail) {
+  if (!trail || trail.length < 10) return null;
+
+  const config = VOYAGE_CONFIG.portDeparture;
+
+  // Scan from newest to oldest to find last departure
+  for (let i = 0; i < trail.length - 5; i++) {
+    const curr = trail[i];
+    const prev = trail[i + 1];
+
+    // Check if speed increased (departed)
+    if (prev.sog_knots <= VOYAGE_CONFIG.portArrival.maxSpeed &&
+        curr.sog_knots >= config.minSpeed) {
+      // Potential departure - verify sustained movement
+      const next5 = trail.slice(i, i + 5);
+      const avgSpeed = next5.reduce((sum, p) => sum + p.sog_knots, 0) / next5.length;
+
+      if (avgSpeed >= config.minSpeed) {
+        return {
+          departureTime: curr.ts,
+          location: { lat: prev.lat, lon: prev.lon }
+        };
+      }
+    }
+  }
+
+  return null; // No departure found
 }
 
 // Update vessel marker on map
@@ -754,10 +921,21 @@ function updateVesselMarker(mmsi, position, trail = []) {
     }
   }
 
-  // Trail: create once, then update
+  // Trail: create once, then update (with voyage-based color coding)
   if (trail.length > 1) {
-    const coordinates = trail.map(pos => [pos.lon, pos.lat]).reverse();
+    // Detect last departure to segment current voyage
+    const lastDeparture = detectLastDeparture(trail);
+    const currentVoyageStart = lastDeparture ? new Date(lastDeparture.departureTime) : null;
+
+    // Create trail with color coding: current voyage (green) vs previous (gray)
+    const coordinates = trail.map(pos => {
+      const posTime = new Date(pos.ts);
+      const isCurrentVoyage = currentVoyageStart && posTime >= currentVoyageStart;
+      return [pos.lon, pos.lat, isCurrentVoyage ? 1 : 0]; // Add voyage flag as 3rd coordinate
+    }).reverse();
+
     const trailData = { type: 'Feature', geometry: { type: 'LineString', coordinates } };
+
     if (map.getSource(trailSourceId)) {
       map.getSource(trailSourceId).setData(trailData);
     } else {
@@ -767,12 +945,15 @@ function updateVesselMarker(mmsi, position, trail = []) {
         type: 'line',
         source: trailSourceId,
         paint: {
-          'line-color': markerColor,
+          'line-color': markerColor, // Will enhance with voyage colors in future
           'line-width': 2,
           'line-opacity': 0.6
         }
       });
     }
+
+    // Store voyage info for later use
+    vessel.currentVoyage = lastDeparture;
   }
 
   console.log(`[NATIVE MARKER] ${isMoving ? 'Arrow' : 'Dot'} for ${vessel.name} at [${position.lat}, ${position.lon}] (${speed.toFixed(1)} kn)`);
@@ -1076,6 +1257,15 @@ function showVesselDetails(mmsi) {
 
     <div class="detail-section">
       <h3>${t('voyage', currentLanguage)}</h3>
+      ${vessel.currentVoyage ? `
+      <div class="detail-row" style="background: rgba(76, 175, 80, 0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem;">
+        <span class="detail-label" style="color: #4caf50; font-weight: 600;">🚢 Current Voyage</span>
+        <span class="detail-value">
+          Departed ${formatRelativeTime(vessel.currentVoyage.departureTime)}
+          <br><small style="color: var(--text-muted); font-size: 0.85em;">${formatDateTime(vessel.currentVoyage.departureTime)}</small>
+        </span>
+      </div>
+      ` : ''}
       ${vessel.last_port ? `
       <div class="detail-row">
         <span class="detail-label">${t('lastPort', currentLanguage) || 'Last Port'}</span>
